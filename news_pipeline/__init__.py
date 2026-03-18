@@ -1,0 +1,2 @@
+"""News briefing pipeline package."""
+

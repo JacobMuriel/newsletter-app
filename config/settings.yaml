@@ -1,0 +1,381 @@
+pipeline:
+  max_items_per_feed: 15
+  max_total_stories_fetched: 200
+  max_stories_to_rank: 45
+  max_stories_to_summarize: 18
+  output_directory: output
+  openai_enabled: true
+  send_email: true
+  dry_run: false
+
+clustering:
+  min_similarity: 0.53
+  merge_similarity: 0.58
+  max_cluster_articles: 8
+  entity_overlap_min: 2
+  entity_bonus: 0.04
+  geopolitics_bonus: 0.05
+  storyline_overlap_min: 2
+  storyline_bonus: 0.06
+  keyphrase_bonus: 0.08
+  merge_entity_bonus_min: 2
+  merge_entity_bonus: 0.05
+  weights:
+    title: 0.34
+    snippet: 0.18
+    token_overlap: 0.18
+    tfidf_cosine: 0.30
+
+section_limits:
+  top: 5
+  markets: 2
+  ai: 3
+  finance_market_structure: 3
+  nba: 3
+
+newsletter:
+  title: Daily Personalized News Briefing
+  date_format: "%A, %B %d, %Y"
+  include_source_links: true
+  nba_story_pool: 6
+  nba_items_per_bucket: 3
+
+categorization:
+  priority_order:
+    - nba
+    - ai
+    - finance_market_structure
+    - markets
+    - top
+  rules:
+    nba:
+      preferred_sources:
+        - ESPN NBA
+      strong_keywords:
+        - nba
+        - finals
+        - playoffs
+        - playoff
+        - eastern conference
+        - western conference
+        - lakers
+        - celtics
+        - knicks
+        - nuggets
+        - thunder
+        - warriors
+        - bucks
+        - 76ers
+        - sixers
+        - mavericks
+        - mavs
+        - cavaliers
+        - suns
+        - rockets
+        - bulls
+        - lebron
+        - curry
+        - jokic
+        - doncic
+        - tatum
+        - giannis
+        - brunson
+        - durant
+        - embiid
+        - morant
+        - wembanyama
+        - sengun
+        - alperen
+        - jalen green
+        - derozan
+        - lavine
+        - coby white
+        - vucevic
+        - amen thompson
+        - reed sheppard
+        - cam whitmore
+      weak_keywords:
+        - standings
+        - injury
+        - return
+      minimum_score: 3
+      preferred_source_minimum_score: 1
+    ai:
+      preferred_sources:
+        - Ars Technica
+        - VentureBeat AI
+        - The Verge
+        - TechCrunch
+        - CNBC Markets
+        - Reuters Business
+      strong_keywords:
+        - ai
+        - artificial intelligence
+        - llm
+        - chatbot
+        - openai
+        - anthropic
+        - nvidia
+        - gpu
+        - chip
+        - chips
+        - semiconductor
+        - inference
+        - training
+        - data center
+        - datacenter
+        - enterprise ai
+      weak_keywords:
+        - model
+      exclusion_keywords:
+        - vaccine
+        - vaccines
+        - vaccination
+        - rfk
+        - kennedy
+        - measles
+        - hhs
+        - surgeon general
+        - public health
+        - healthcare
+        - medicaid
+        - medicare
+        - hospital
+        - clinical trial
+        - immunization
+        - fda approval
+        - cdc
+        - outbreak
+        - pandemic
+      minimum_score: 3
+      preferred_source_minimum_score: 2
+    finance_market_structure:
+      preferred_sources:
+        - Reuters Business
+        - SEC Press Releases
+        - CFTC Press Releases
+        - CNBC Markets
+        - MarketWatch Top Stories
+      strong_keywords:
+        - exchange
+        - exchanges
+        - options
+        - futures
+        - market structure
+        - trading
+        - sec
+        - cftc
+        - clearing
+        - volatility
+        - liquidity
+        - treasury market
+        - plumbing
+        - cboe
+        - cme
+        - ice
+        - nasdaq
+        - nyse
+        - settlement
+        - derivatives
+        - vix
+      weak_keywords:
+        - etf
+        - etfs
+        - treasury
+      minimum_score: 4
+      preferred_source_minimum_score: 2
+    markets:
+      preferred_sources:
+        - Reuters Business
+        - CNBC Markets
+        - MarketWatch Top Stories
+      strong_keywords:
+        - inflation
+        - cpi
+        - ppi
+        - fed
+        - federal reserve
+        - rates
+        - rate cut
+        - rate hike
+        - treasury yields
+        - oil
+        - commodities
+        - gold
+        - dollar
+        - equities
+        - bonds
+        - macro
+        - earnings
+        - tariff
+        - tariffs
+        - trade policy
+      weak_keywords:
+        - treasury
+        - payrolls
+        - guidance
+      minimum_score: 3
+      preferred_source_minimum_score: 2
+    top:
+      preferred_sources:
+        - Reuters World
+        - Reuters Business
+        - Associated Press
+        - New York Times Home
+        - Fox News Politics
+        - BBC World News
+        - The Guardian World
+        - The Hill
+        - Politico
+        - Axios
+        - NPR News
+        - Wall Street Journal
+        - Washington Examiner
+        - National Review
+        - The Atlantic
+      strong_keywords:
+        - white house
+        - congress
+        - senate
+        - election
+        - supreme court
+        - tariffs
+        - sanctions
+        - ceasefire
+        - military
+        - gdp
+        - china
+        - europe
+        - ukraine
+        - middle east
+      weak_keywords:
+        - policy
+      minimum_score: 0
+
+quality_filter:
+  minimum_score: 3
+  vague_title_patterns:
+    - live updates
+    - watch live
+    - photos
+    - video
+    - opinion
+    - analysis
+  minimum_summary_length: 40
+  section_source_penalty: 1
+  weak_section_match_penalty: 2
+  vague_title_penalty: 1
+  empty_summary_penalty: 2
+
+ranking:
+  weights:
+    cluster_strength: 1.25
+    source_quality: 1.8
+    outlet_spread: 1.1
+    corroboration: 1.5
+    major_outlet_presence: 1.0
+    category_importance: 1.2
+    impact_keywords: 1.4
+    personal_relevance: 1.4
+    recency: 1.1
+    ideological_spread: 2.0
+  category_importance:
+    top: 3.2
+    markets: 2.7
+    ai: 2.6
+    finance_market_structure: 2.5
+    nba: 1.8
+  source_priority:
+    default: 1.0
+    weights:
+      Reuters World: 4.0
+      Reuters Business: 4.0
+      Associated Press: 4.0
+      AP: 4.0
+      SEC Press Releases: 4.0
+      CFTC Press Releases: 4.0
+      New York Times Home: 3.0
+      CNBC Markets: 3.0
+      Ars Technica: 3.0
+      BBC World News: 3.0
+      Wall Street Journal: 3.0
+      The Guardian World: 2.5
+      Politico: 2.5
+      The Hill: 2.0
+      Axios: 2.5
+      NPR News: 2.5
+      The Verge: 2.0
+      TechCrunch: 2.0
+      MarketWatch Top Stories: 2.0
+      Fox News Politics: 2.0
+      ESPN NBA: 2.0
+      VentureBeat AI: 2.0
+      Washington Examiner: 2.0
+      National Review: 1.5
+      The Atlantic: 2.0
+    major_outlets:
+      - Reuters World
+      - Reuters Business
+      - Associated Press
+      - New York Times Home
+      - Fox News Politics
+      - Wall Street Journal
+      - CNBC Markets
+      - Ars Technica
+      - BBC World News
+      - Politico
+      - Axios
+      - NPR News
+  keyword_sets:
+    high_impact:
+      - emergency
+      - tariff
+      - sanctions
+      - war
+      - ceasefire
+      - fed
+      - inflation
+      - layoffs
+      - earnings
+      - sec
+      - cftc
+      - etf
+      - options
+      - chip
+      - ai
+      - injury
+    personal_relevance:
+      - ai
+      - artificial intelligence
+      - chip
+      - semiconductor
+      - openai
+      - nvidia
+      - exchange
+      - options
+      - etf
+      - sec
+      - cftc
+      - market structure
+      - volatility
+      - cboe
+      - nba
+      - playoff
+      - standings
+
+summarization:
+  model: gpt-4o-mini
+  temperature: 0.2
+  max_output_tokens: 2000
+  max_retries: 2
+  confidence_weights:
+    source_count: 0.9
+    outlet_groups: 0.8
+    reliability: 1.2
+    corroboration: 2.4
+  confidence_thresholds:
+    medium: 4.6
+    high: 7.4
+
+delivery:
+  email_subject_prefix: "[News Brief]"

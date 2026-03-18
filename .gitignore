@@ -1,0 +1,10 @@
+.env
+.venv/
+.venv_test/
+__pycache__/
+*.pyc
+output/
+.DS_Store
+.claude/
+memory/
+
