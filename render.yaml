@@ -14,3 +14,7 @@ services:
         value: "80"
       - key: OPENAI_API_KEY
         sync: false  # set manually in Render dashboard, never commit this
+      - key: GROK_ENABLED
+        value: "true"
+      - key: GROK_API_KEY
+        sync: false  # set manually in Render dashboard, never commit this

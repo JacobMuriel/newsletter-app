@@ -20,6 +20,7 @@ import yaml
 from dotenv import load_dotenv
 
 from news_pipeline.bias_detect import detect_charged_language
+from news_pipeline.nba_social import get_nba_social_buzz
 from news_pipeline.categorize import categorize_stories
 from news_pipeline.cluster import cluster_articles
 from news_pipeline.fetch_news import fetch_news
@@ -95,9 +96,19 @@ def get_ranked_stories() -> dict:
         len(_story_registry),
     )
 
+    nba_buzz = None
+    if os.environ.get("GROK_ENABLED", "false").lower() == "true":
+        logger.info("[pipeline] Fetching NBA social buzz from Grok...")
+        nba_buzz = get_nba_social_buzz()
+        if nba_buzz is None:
+            logger.warning("[pipeline] NBA social buzz unavailable — Grok call returned None")
+    else:
+        logger.info("[pipeline] GROK_ENABLED is false — skipping NBA social buzz")
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "sections": result_sections,
+        "nba_social_buzz": nba_buzz,
     }
 
 
