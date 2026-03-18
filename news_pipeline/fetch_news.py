@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from time import struct_time
 from typing import Iterable
 
+import urllib.request
+import urllib.error
+
 import feedparser
 
 from news_pipeline.models import Article, FeedSource, FetchStats
@@ -41,9 +44,15 @@ def fetch_news(
         logger.info("Fetching RSS feed from %s", source.name)
 
         try:
-            parsed_feed = feedparser.parse(source.feed_url)
+            req = urllib.request.Request(
+                source.feed_url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; Briefing/1.0)"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                feed_content = resp.read()
+            parsed_feed = feedparser.parse(feed_content)
         except Exception:
-            logger.exception("Failed to fetch feed from %s", source.feed_url)
+            logger.warning("Failed to fetch feed from %s (skipping)", source.name)
             stats.feeds_failed.append(source.name)
             continue
 
