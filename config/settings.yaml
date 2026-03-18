@@ -1,6 +1,6 @@
 pipeline:
   max_items_per_feed: 15
-  max_total_stories_fetched: 200
+  max_total_stories_fetched: 80
   max_stories_to_rank: 45
   max_stories_to_summarize: 18
   output_directory: output

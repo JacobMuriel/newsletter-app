@@ -10,5 +10,7 @@ services:
         value: "true"
       - key: OPENAI_MODEL
         value: "gpt-4o-mini"
+      - key: MAX_STORIES_FETCHED
+        value: "80"
       - key: OPENAI_API_KEY
         sync: false  # set manually in Render dashboard, never commit this
