@@ -43,6 +43,16 @@ def get_nba_social_buzz() -> dict | None:
     prompt = f"""
 Today's date is {today_str}. Search X (Twitter) specifically for posts made on {yesterday_str}.
 
+Important: every game result, player name, and storyline you return must be verifiable \
+from X posts dated {yesterday_str}. Do not infer, extrapolate, or fill gaps with training data.
+
+Never use vague references like "a star player" or "a contending team." Always name the \
+specific player, team, and game. If you cannot identify specific names from X posts on \
+{yesterday_str}, omit that item entirely rather than generalizing.
+
+The NBA trade deadline has already passed for the 2025-26 season. Do not include trade \
+rumors or trade deadline content.
+
 Do the following:
 
 1. Check if the Houston Rockets played an NBA game on {yesterday_str}.
@@ -57,8 +67,11 @@ Do the following:
 
 3. Summarize the 2-3 most-discussed NBA storylines on X from {yesterday_str}
    that are NOT about the Rockets or Bulls.
-   These could be a big trade, standout performance, injury news, controversy,
-   playoff standings movement, or anything else generating significant discussion.
+   These could be a standout performance, injury news, controversy, or playoff
+   standings movement generating significant discussion.
+   For each item: if you are not confident it actually happened on {yesterday_str}
+   based on real X posts, omit it. Return fewer items rather than speculating.
+   An empty league_buzz array is acceptable.
 
 Important: only report on games and events that actually occurred on {yesterday_str}.
 Do not pull in results from other dates. If you are uncertain whether a game occurred,
