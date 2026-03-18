@@ -108,6 +108,8 @@ def cluster_articles(articles: list[Article], settings: dict[str, Any]) -> list[
         key=lambda article: article.published_at.timestamp() if article.published_at else 0.0,
         reverse=True,
     )
+    ordered_articles = ordered_articles[:120]
+    print(f"[cluster] clustering {len(ordered_articles)} articles")
     tfidf_vectors, idf = _build_tfidf_vectors(ordered_articles)
     article_vectors = {article.article_id: tfidf_vectors[index] for index, article in enumerate(ordered_articles)}
 
@@ -218,6 +220,13 @@ def _build_story(cluster: _ClusterCandidate, idf: dict[str, float]) -> Story:
     return story
 
 
+def _has_title_token_overlap(left_title: str, right_title: str) -> bool:
+    """Cheap pre-filter: returns True if both titles share at least one important token."""
+    left_tokens = set(_important_tokens(left_title))
+    right_tokens = set(_important_tokens(right_title))
+    return bool(left_tokens & right_tokens)
+
+
 def _article_cluster_similarity(
     *,
     article: Article,
@@ -227,6 +236,8 @@ def _article_cluster_similarity(
 ) -> float:
     best = 0.0
     for existing in cluster.articles[:4]:
+        if not _has_title_token_overlap(article.title, existing.title):
+            continue
         best = max(
             best,
             _article_similarity(
