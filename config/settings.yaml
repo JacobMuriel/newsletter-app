@@ -51,6 +51,8 @@ categorization:
     nba:
       preferred_sources:
         - ESPN NBA
+        - Bleacher Report NBA
+        - CBS Sports NBA
       strong_keywords:
         - nba
         - finals
@@ -309,6 +311,8 @@ ranking:
       MarketWatch Top Stories: 2.0
       Fox News Politics: 2.0
       ESPN NBA: 2.0
+      Bleacher Report NBA: 1.2
+      CBS Sports NBA: 1.4
       VentureBeat AI: 2.0
       Washington Examiner: 2.0
       National Review: 1.5

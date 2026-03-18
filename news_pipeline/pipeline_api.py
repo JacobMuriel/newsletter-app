@@ -75,7 +75,13 @@ def get_ranked_stories() -> dict:
         {**settings["quality_filter"], "section_rules": settings["categorization"]["rules"]},
     )
     ranked = rank_stories(quality, settings["ranking"])
-    candidates = ranked[: int(settings["pipeline"]["max_stories_to_rank"])]
+    nba_in_ranked = [s for s in ranked if s.category == "nba"]
+    logger.info("pipeline_api: %d NBA stories in ranked list (pre-cap)", len(nba_in_ranked))
+    candidates = _select_stories_with_section_guarantees(
+        ranked,
+        section_limits=settings["section_limits"],
+        global_cap=int(settings["pipeline"]["max_stories_to_rank"]),
+    )
     stories_by_section = _select_stories_by_section(candidates, settings["section_limits"])
 
     new_registry: dict[str, Story] = {}
@@ -173,6 +179,38 @@ def _story_to_dict(story: Story, sid: str) -> dict:
         "bias_flags": list(story.charged_sources.keys()) if story.charged_sources else [],
         "has_left_right": story.category == "top",
     }
+
+
+def _select_stories_with_section_guarantees(
+    ranked: list[Story],
+    section_limits: dict,
+    global_cap: int,
+) -> list[Story]:
+    """
+    Take the top `global_cap` stories by rank, then guarantee each section
+    gets at least its limit by reaching into the cut tail for underfilled sections.
+    """
+    candidates = ranked[:global_cap]
+    section_counts: dict[str, int] = {}
+    for story in candidates:
+        section_counts[story.category] = section_counts.get(story.category, 0) + 1
+
+    already_included = {id(s) for s in candidates}
+    extras: list[Story] = []
+
+    for section, limit in section_limits.items():
+        needed = int(limit) - section_counts.get(section, 0)
+        if needed <= 0:
+            continue
+        for story in ranked[global_cap:]:
+            if needed <= 0:
+                break
+            if story.category == section and id(story) not in already_included:
+                extras.append(story)
+                already_included.add(id(story))
+                needed -= 1
+
+    return candidates + extras
 
 
 def _select_stories_by_section(

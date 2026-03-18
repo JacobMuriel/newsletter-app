@@ -87,6 +87,22 @@ sources:
     outlet_group: ESPN
     reliability_weight: 0.9
 
+  - name: Bleacher Report NBA
+    feed_url: https://bleacherreport.com/nba.rss
+    ideology_label: sports
+    enabled: true
+    tags: [nba, sports]
+    outlet_group: Bleacher Report
+    reliability_weight: 0.85
+
+  - name: CBS Sports NBA
+    feed_url: https://www.cbssports.com/rss/headlines/nba/
+    ideology_label: sports
+    enabled: true
+    tags: [nba, sports]
+    outlet_group: CBS Sports
+    reliability_weight: 0.9
+
   - name: BBC World News
     feed_url: http://feeds.bbci.co.uk/news/world/rss.xml
     ideology_label: center
