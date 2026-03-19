@@ -122,7 +122,7 @@ If rockets_buzz or bulls_buzz is null because no game was played, use JSON null 
 
     try:
         response = client.chat.completions.create(
-            model="grok-2-1212",
+            model="grok-3",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,  # low temp = more factual, less hallucination risk
         )
