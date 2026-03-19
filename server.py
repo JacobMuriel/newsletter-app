@@ -21,6 +21,7 @@ from datetime import date
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -119,10 +120,13 @@ async def sections():
         logger.info("GET /sections — Redis hit")
         return cached
 
-    # No data available — cron job hasn't run yet today
-    raise HTTPException(
-        status_code=503,
-        detail="Pipeline data not available yet. The daily cron job may not have run. Try again shortly."
+    # No data yet — return 202 so the iOS app retries instead of hard-failing
+    return JSONResponse(
+        status_code=202,
+        content={
+            "status": "warming_up",
+            "message": "Pipeline data not available yet. Please retry in a moment.",
+        },
     )
 
 
