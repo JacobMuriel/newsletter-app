@@ -11,7 +11,7 @@ pipeline:
 clustering:
   min_similarity: 0.53
   merge_similarity: 0.58
-  max_cluster_articles: 8
+  max_cluster_articles: 5
   entity_overlap_min: 2
   entity_bonus: 0.04
   geopolitics_bonus: 0.05

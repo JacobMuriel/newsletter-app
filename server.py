@@ -4,15 +4,12 @@ server.py — FastAPI server exposing the Briefing news pipeline as an HTTP API.
 Endpoints:
   GET  /sections   — returns all ranked stories grouped by section (no summaries)
   POST /summary    — generates a summary for a single story on demand
+  GET  /warmup     — wakes the server and pre-warms the cache (call from iOS on foreground)
   GET  /health     — liveness + pipeline status
 
-Caching:
-  /sections result is cached for the calendar day (UTC). Re-runs pipeline after midnight.
-  /summary results are cached in memory for the lifetime of the process.
-
-Startup:
-  Pipeline runs as a background task at server startup via FastAPI lifespan.
-  /sections returns 202 "warming_up" until the pipeline finishes.
+Caching (two layers):
+  Layer 1 — in-memory: fastest, lives for the process lifetime.
+  Layer 2 — disk (/tmp): survives Render sleep/restart. Invalidated at midnight UTC.
 """
 
 from __future__ import annotations
@@ -38,13 +35,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from news_pipeline.pipeline_api import get_ranked_stories, get_story_summary  # noqa: E402
+from news_pipeline.disk_cache import (  # noqa: E402
+    load_sections_cache, save_sections_cache,
+    load_summaries_cache, save_summary_to_cache,
+)
 
 # ---------------------------------------------------------------------------
-# In-memory cache
+# Cache state
 # ---------------------------------------------------------------------------
 _sections_cache: dict | None = None
 _sections_cache_date: date | None = None
 _summary_cache: dict[str, dict] = {}
+_summary_cache_loaded: bool = False
 _pipeline_ready: bool = False
 _pipeline_error: str | None = None
 
@@ -54,10 +56,23 @@ _pipeline_error: str | None = None
 # ---------------------------------------------------------------------------
 async def _run_pipeline_background() -> None:
     global _sections_cache, _sections_cache_date, _pipeline_ready, _pipeline_error
+    global _summary_cache, _summary_cache_loaded
     try:
+        # Layer 2: try disk cache first — avoids full pipeline run after Render sleep
+        cached = load_sections_cache()
+        if cached is not None:
+            _sections_cache = cached
+            _sections_cache_date = date.today()
+            _summary_cache = load_summaries_cache()
+            _summary_cache_loaded = True
+            _pipeline_ready = True
+            logger.info("[server] Loaded from disk cache — pipeline run skipped")
+            return
+
         logger.info("[server] pipeline starting in background...")
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, get_ranked_stories)
+        save_sections_cache(result)
         _sections_cache = result
         _sections_cache_date = date.today()
         _pipeline_ready = True
@@ -123,6 +138,7 @@ async def sections():
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, get_ranked_stories)
+            save_sections_cache(result)
             _sections_cache = result
             _sections_cache_date = today
         except Exception as exc:
@@ -136,7 +152,14 @@ async def sections():
 @app.post("/summary")
 async def summary(body: SummaryRequest):
     """Generate a summary for a single story. Returns cached result if already generated."""
+    global _summary_cache, _summary_cache_loaded
+
     story_id = body.story_id
+
+    # Hydrate summary cache from disk on first request after cold start
+    if not _summary_cache_loaded:
+        _summary_cache = load_summaries_cache()
+        _summary_cache_loaded = True
 
     if story_id in _summary_cache:
         logger.info("POST /summary — cache hit (story_id=%s)", story_id)
@@ -166,9 +189,27 @@ async def summary(body: SummaryRequest):
         logger.exception("Summary generation failed (story_id=%s): %s", story_id, exc)
         raise HTTPException(status_code=500, detail=f"Summary error: {exc}")
 
-    _summary_cache[story_id] = result
+    save_summary_to_cache(story_id, result, _summary_cache)
     logger.info("POST /summary — done (story_id=%s)", story_id)
     return result
+
+
+@app.get("/warmup")
+async def warmup():
+    """
+    Called by the iOS app to wake the server before the user needs data.
+    Pre-warms the sections cache if stale. Returns immediately.
+    """
+    today = datetime.now(timezone.utc).date()
+    if _pipeline_ready and _sections_cache_date == today:
+        return {"status": "awake", "cache": "hit"}
+
+    if load_sections_cache() is not None:
+        return {"status": "awake", "cache": "hit"}
+
+    # No valid cache — kick off pipeline in background
+    asyncio.create_task(_run_pipeline_background())
+    return {"status": "awake", "cache": "miss_running"}
 
 
 @app.get("/health")

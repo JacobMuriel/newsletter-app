@@ -12,6 +12,7 @@ import copy
 import hashlib
 import logging
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,8 @@ def get_ranked_stories() -> dict:
 
     sources, settings = _load_config()
 
+    t0 = time.time()
+
     logger.info("pipeline_api: fetching news…")
     raw_articles, fetch_stats = fetch_news(
         sources=sources,
@@ -63,8 +66,13 @@ def get_ranked_stories() -> dict:
         max_total_stories=int(settings["pipeline"]["max_total_stories_fetched"]),
     )
     logger.info("pipeline_api: fetched %d raw articles", len(raw_articles))
+    logger.info("[perf] RSS fetch: %.1fs (%d articles)", time.time() - t0, len(raw_articles))
+    t1 = time.time()
 
     clustered = cluster_articles(raw_articles, settings["clustering"])
+    logger.info("[perf] Clustering: %.1fs (%d clusters)", time.time() - t1, len(clustered))
+    t2 = time.time()
+
     categorized = categorize_stories(clustered, settings["categorization"])
 
     for story in categorized:
@@ -75,6 +83,8 @@ def get_ranked_stories() -> dict:
         {**settings["quality_filter"], "section_rules": settings["categorization"]["rules"]},
     )
     ranked = rank_stories(quality, settings["ranking"])
+    logger.info("[perf] Categorize+rank: %.1fs (%d ranked)", time.time() - t2, len(ranked))
+
     nba_in_ranked = [s for s in ranked if s.category == "nba"]
     logger.info("pipeline_api: %d NBA stories in ranked list (pre-cap)", len(nba_in_ranked))
     candidates = _select_stories_with_section_guarantees(
@@ -101,6 +111,7 @@ def get_ranked_stories() -> dict:
         len(result_sections),
         len(_story_registry),
     )
+    logger.info("[perf] Total pipeline: %.1fs", time.time() - t0)
 
     nba_buzz = None
     if os.environ.get("GROK_ENABLED", "false").lower() == "true":
