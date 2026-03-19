@@ -41,14 +41,16 @@ def get_nba_social_buzz() -> dict | None:
     yesterday_str = yesterday.strftime("%B %-d, %Y")
 
     prompt = f"""
-Today's date is {today_str}. Search X (Twitter) specifically for posts made on {yesterday_str}.
+Today's date is {today_str}. Search X (Twitter) for posts made on {yesterday_str} and \
+{today_str} up to the current time.
 
 Important: every game result, player name, and storyline you return must be verifiable \
-from X posts dated {yesterday_str}. Do not infer, extrapolate, or fill gaps with training data.
+from X posts dated {yesterday_str} or {today_str}. Do not infer, extrapolate, or fill \
+gaps with training data.
 
 Never use vague references like "a star player" or "a contending team." Always name the \
-specific player, team, and game. If you cannot identify specific names from X posts on \
-{yesterday_str}, omit that item entirely rather than generalizing.
+specific player, team, and game. If you cannot identify specific names from X posts, \
+omit that item entirely rather than generalizing.
 
 The NBA trade deadline has already passed for the 2025-26 season. Do not include trade \
 rumors or trade deadline content.
@@ -57,25 +59,23 @@ Do the following:
 
 1. Check if the Houston Rockets played an NBA game on {yesterday_str}.
    - If yes: summarize what fans and analysts on X are saying about the game.
+     Draw from both the in-game/post-game reactions on {yesterday_str} and the
+     morning-after analysis posted on {today_str}.
      Include the final score, 2-3 reactions (paraphrased, not verbatim quotes),
      and the overall sentiment (positive / negative / mixed).
    - If no game was played: set rockets_buzz to null.
 
 2. Check if the Chicago Bulls played an NBA game on {yesterday_str}.
-   - Same format as above.
+   - Same format as above, including both last night's reactions and today's takes.
    - If no game was played: set bulls_buzz to null.
 
-3. Summarize the 2-3 most-discussed NBA storylines on X from {yesterday_str}
-   that are NOT about the Rockets or Bulls.
+3. Summarize the 2-3 most-discussed NBA storylines on X from {yesterday_str} and \
+{today_str} that are NOT about the Rockets or Bulls.
    These could be a standout performance, injury news, controversy, or playoff
    standings movement generating significant discussion.
    For each item: if you are not confident it actually happened on {yesterday_str}
-   based on real X posts, omit it. Return fewer items rather than speculating.
-   An empty league_buzz array is acceptable.
-
-Important: only report on games and events that actually occurred on {yesterday_str}.
-Do not pull in results from other dates. If you are uncertain whether a game occurred,
-set that team's field to null rather than guessing.
+   based on real X posts, omit it. You must return at least 2 items — the NBA
+   always has meaningful storylines worth discussing.
 
 Return ONLY valid JSON. No markdown, no code fences, no explanation — raw JSON only.
 
