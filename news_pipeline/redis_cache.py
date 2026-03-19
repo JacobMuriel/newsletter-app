@@ -128,3 +128,18 @@ def save_summary_to_cache(story_id: str, summary_dict: dict, current_cache: dict
         raise
     except Exception as e:
         logger.warning(f"[redis_cache] Could not save summary for {story_id}: {e}")
+
+
+def save_summaries_cache(summaries: dict) -> None:
+    """
+    Writes the full summaries dict to Redis at once (used by cron for bulk pre-generation).
+    """
+    try:
+        client = _get_client()
+        client.set(SUMMARIES_KEY, json.dumps(summaries), ex=CACHE_TTL_SECONDS)
+        logger.info(f"[redis_cache] Summaries cache written ({len(summaries)} stories)")
+
+    except EnvironmentError:
+        raise
+    except Exception as e:
+        logger.warning(f"[redis_cache] Could not write summaries cache: {e}")
