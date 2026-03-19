@@ -1,4 +1,5 @@
 feedparser==6.0.11
+upstash-redis
 nba_api>=1.4.1
 openai>=1.30.0
 pandas>=2.0.0

@@ -13,8 +13,34 @@ services:
       - key: MAX_STORIES_FETCHED
         value: "80"
       - key: OPENAI_API_KEY
-        sync: false  # set manually in Render dashboard, never commit this
+        sync: false
       - key: GROK_ENABLED
         value: "true"
       - key: GROK_API_KEY
-        sync: false  # set manually in Render dashboard, never commit this
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+  - type: cron
+    name: briefing-cron
+    env: python
+    schedule: "0 12 * * *"   # 7am US Central (UTC-5)
+    buildCommand: pip install -r requirements.txt
+    startCommand: python cron_pipeline.py
+    envVars:
+      - key: OPENAI_ENABLED
+        value: "true"
+      - key: OPENAI_MODEL
+        value: "gpt-4o-mini"
+      - key: GROK_ENABLED
+        value: "true"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GROK_API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

@@ -2,28 +2,26 @@
 server.py — FastAPI server exposing the Briefing news pipeline as an HTTP API.
 
 Endpoints:
-  GET  /sections   — returns all ranked stories grouped by section (no summaries)
+  GET  /sections   — returns all ranked stories grouped by section (reads from Redis)
   POST /summary    — generates a summary for a single story on demand
-  GET  /warmup     — wakes the server and pre-warms the cache (call from iOS on foreground)
-  GET  /health     — liveness + pipeline status
+  GET  /warmup     — wakes the server and pre-loads sections into memory
+  GET  /health     — liveness + cache status
 
 Caching (two layers):
   Layer 1 — in-memory: fastest, lives for the process lifetime.
-  Layer 2 — disk (/tmp): survives Render sleep/restart. Invalidated at midnight UTC.
+  Layer 2 — Upstash Redis: survives deploys, restarts, and Render sleep.
+  The pipeline itself never runs here — that's cron_pipeline.py's job.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
-from contextlib import asynccontextmanager
-from datetime import date, datetime, timezone
+from datetime import date
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 load_dotenv()
@@ -34,67 +32,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from news_pipeline.pipeline_api import get_ranked_stories, get_story_summary  # noqa: E402
-from news_pipeline.disk_cache import (  # noqa: E402
-    load_sections_cache, save_sections_cache,
-    load_summaries_cache, save_summary_to_cache,
+from news_pipeline.pipeline_api import get_story_summary  # noqa: E402
+from news_pipeline.redis_cache import (  # noqa: E402
+    load_sections_cache,
+    load_summaries_cache,
+    save_summary_to_cache,
 )
 
 # ---------------------------------------------------------------------------
-# Cache state
+# In-memory layer — avoids hitting Redis on every single request
 # ---------------------------------------------------------------------------
-_sections_cache: dict | None = None
-_sections_cache_date: date | None = None
-_summary_cache: dict[str, dict] = {}
+_sections_mem_cache: dict | None = None
+_sections_mem_date: str | None = None
+_summary_mem_cache: dict = {}
 _summary_cache_loaded: bool = False
-_pipeline_ready: bool = False
-_pipeline_error: str | None = None
-
-
-# ---------------------------------------------------------------------------
-# Background pipeline task
-# ---------------------------------------------------------------------------
-async def _run_pipeline_background() -> None:
-    global _sections_cache, _sections_cache_date, _pipeline_ready, _pipeline_error
-    global _summary_cache, _summary_cache_loaded
-    try:
-        # Layer 2: try disk cache first — avoids full pipeline run after Render sleep
-        cached = load_sections_cache()
-        if cached is not None:
-            _sections_cache = cached
-            _sections_cache_date = date.today()
-            _summary_cache = load_summaries_cache()
-            _summary_cache_loaded = True
-            _pipeline_ready = True
-            logger.info("[server] Loaded from disk cache — pipeline run skipped")
-            return
-
-        logger.info("[server] pipeline starting in background...")
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, get_ranked_stories)
-        save_sections_cache(result)
-        _sections_cache = result
-        _sections_cache_date = date.today()
-        _pipeline_ready = True
-        logger.info(
-            "[server] pipeline ready — sections: %s",
-            {k: len(v) for k, v in result.get("sections", {}).items()},
-        )
-    except Exception as exc:
-        _pipeline_error = str(exc)
-        logger.exception("[server] pipeline failed: %s", exc)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    asyncio.create_task(_run_pipeline_background())
-    yield
-
 
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
-app = FastAPI(title="Briefing API", lifespan=lifespan)
+app = FastAPI(title="Briefing API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -115,69 +71,79 @@ class SummaryRequest(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@app.get("/health")
+async def health():
+    cache_date = _sections_mem_date or "not loaded in memory"
+    return {"status": "ok", "cache_date": cache_date}
+
+
+@app.get("/warmup")
+async def warmup():
+    """
+    Called by the iOS app when it comes to foreground.
+    Wakes the server and pre-loads sections into memory.
+    """
+    global _sections_mem_cache, _sections_mem_date
+
+    if _sections_mem_cache and _sections_mem_date == str(date.today()):
+        return {"status": "awake", "cache": "memory_hit"}
+
+    cached = load_sections_cache()
+    if cached:
+        _sections_mem_cache = cached
+        _sections_mem_date = str(date.today())
+        return {"status": "awake", "cache": "redis_hit"}
+
+    return {
+        "status": "awake",
+        "cache": "miss",
+        "message": "No pipeline data for today yet. Cron job may not have run."
+    }
+
+
 @app.get("/sections")
 async def sections():
     """Return all ranked stories grouped by section."""
-    global _sections_cache, _sections_cache_date
+    global _sections_mem_cache, _sections_mem_date
 
-    if not _pipeline_ready:
-        logger.info("GET /sections — pipeline not ready yet")
-        return JSONResponse(
-            status_code=202,
-            content={
-                "status": "warming_up",
-                "message": "Pipeline is loading, please retry in 30–60 seconds",
-                "error": _pipeline_error,
-            },
-        )
+    # Layer 1: memory
+    if _sections_mem_cache and _sections_mem_date == str(date.today()):
+        logger.info("GET /sections — memory hit")
+        return _sections_mem_cache
 
-    # Re-run pipeline if it's a new day
-    today = datetime.now(timezone.utc).date()
-    if _sections_cache_date != today:
-        logger.info("GET /sections — new day, re-running pipeline (date=%s)", today)
-        try:
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, get_ranked_stories)
-            save_sections_cache(result)
-            _sections_cache = result
-            _sections_cache_date = today
-        except Exception as exc:
-            logger.exception("Pipeline refresh failed: %s", exc)
-            raise HTTPException(status_code=500, detail=f"Pipeline error: {exc}")
+    # Layer 2: Redis
+    cached = load_sections_cache()
+    if cached:
+        _sections_mem_cache = cached
+        _sections_mem_date = str(date.today())
+        logger.info("GET /sections — Redis hit")
+        return cached
 
-    logger.info("GET /sections — returning cached result (date=%s)", _sections_cache_date)
-    return _sections_cache
+    # No data available — cron job hasn't run yet today
+    raise HTTPException(
+        status_code=503,
+        detail="Pipeline data not available yet. The daily cron job may not have run. Try again shortly."
+    )
 
 
 @app.post("/summary")
 async def summary(body: SummaryRequest):
     """Generate a summary for a single story. Returns cached result if already generated."""
-    global _summary_cache, _summary_cache_loaded
+    global _summary_mem_cache, _summary_cache_loaded
 
     story_id = body.story_id
 
-    # Hydrate summary cache from disk on first request after cold start
+    # Hydrate from Redis on first request after boot
     if not _summary_cache_loaded:
-        _summary_cache = load_summaries_cache()
+        _summary_mem_cache = load_summaries_cache()
         _summary_cache_loaded = True
 
-    if story_id in _summary_cache:
+    if story_id in _summary_mem_cache:
         logger.info("POST /summary — cache hit (story_id=%s)", story_id)
-        return _summary_cache[story_id]
+        return _summary_mem_cache[story_id]
 
-    if not _pipeline_ready:
-        raise HTTPException(status_code=503, detail="Pipeline not ready yet. Retry after /sections returns 200.")
-
-    story_data: dict = {}
-    for section_stories in _sections_cache.get("sections", {}).values():  # type: ignore[union-attr]
-        for s in section_stories:
-            if s["id"] == story_id:
-                story_data = s
-                break
-        if story_data:
-            break
-
-    if not story_data:
+    story_data = _find_story(story_id)
+    if story_data is None:
         raise HTTPException(status_code=404, detail=f"Story '{story_id}' not found. Refresh /sections.")
 
     logger.info("POST /summary — generating (story_id=%s)", story_id)
@@ -189,34 +155,17 @@ async def summary(body: SummaryRequest):
         logger.exception("Summary generation failed (story_id=%s): %s", story_id, exc)
         raise HTTPException(status_code=500, detail=f"Summary error: {exc}")
 
-    save_summary_to_cache(story_id, result, _summary_cache)
+    save_summary_to_cache(story_id, result, _summary_mem_cache)
     logger.info("POST /summary — done (story_id=%s)", story_id)
     return result
 
 
-@app.get("/warmup")
-async def warmup():
-    """
-    Called by the iOS app to wake the server before the user needs data.
-    Pre-warms the sections cache if stale. Returns immediately.
-    """
-    today = datetime.now(timezone.utc).date()
-    if _pipeline_ready and _sections_cache_date == today:
-        return {"status": "awake", "cache": "hit"}
-
-    if load_sections_cache() is not None:
-        return {"status": "awake", "cache": "hit"}
-
-    # No valid cache — kick off pipeline in background
-    asyncio.create_task(_run_pipeline_background())
-    return {"status": "awake", "cache": "miss_running"}
-
-
-@app.get("/health")
-async def health():
-    return {
-        "status": "ok",
-        "pipeline_ready": _pipeline_ready,
-        "cached_date": str(_sections_cache_date),
-        "error": _pipeline_error,
-    }
+def _find_story(story_id: str) -> dict | None:
+    """Look up a story by ID from the in-memory sections cache."""
+    if not _sections_mem_cache:
+        return None
+    for section_stories in _sections_mem_cache.get("sections", {}).values():
+        for story in section_stories:
+            if story.get("id") == story_id:
+                return story
+    return None
