@@ -149,12 +149,12 @@ def get_story_summary(story_id: str, story_data: dict) -> dict:
         api_key=os.getenv("OPENAI_API_KEY"),
     )
 
-    confirmed_facts_list = _split_sentences(story.confirmed_facts)
-
     result: dict[str, Any] = {
         "story_id": story_id,
         "summary": story.newsletter_blurb,
-        "confirmed_facts": confirmed_facts_list,
+        "confirmed_facts": story.confirmed_facts,
+        "why_it_matters": story.why_it_matters,
+        "sources": story.source_names,
     }
 
     if story.category == "top":
@@ -280,10 +280,3 @@ def _env_int(name: str, default: int) -> int:
     return int(default) if v is None else int(v)
 
 
-def _split_sentences(text: str) -> list[str]:
-    """Split a multi-sentence string into a list for the API response."""
-    if not text:
-        return []
-    import re
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-    return [s for s in sentences if s]

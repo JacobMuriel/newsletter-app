@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 from news_pipeline.pipeline_api import get_story_summary  # noqa: E402
 from news_pipeline.redis_cache import (  # noqa: E402
     load_sections_cache,
+    load_nba_stats_cache,
     load_summaries_cache,
     save_summary_to_cache,
 )
@@ -89,7 +90,7 @@ async def warmup():
     if _sections_mem_cache and _sections_mem_date == str(date.today()):
         return {"status": "awake", "cache": "memory_hit"}
 
-    cached = load_sections_cache()
+    cached = _load_sections_with_nba()
     if cached:
         _sections_mem_cache = cached
         _sections_mem_date = str(date.today())
@@ -113,7 +114,7 @@ async def sections():
         return _sections_mem_cache
 
     # Layer 2: Redis
-    cached = load_sections_cache()
+    cached = _load_sections_with_nba()
     if cached:
         _sections_mem_cache = cached
         _sections_mem_date = str(date.today())
@@ -167,6 +168,20 @@ async def summary(body: SummaryRequest):
     save_summary_to_cache(story_id, result, _summary_mem_cache)
     logger.info("POST /summary — done (story_id=%s)", story_id)
     return result
+
+
+def _load_sections_with_nba() -> dict | None:
+    """Load sections from Redis and inject nba_stats as a top-level key."""
+    cached = _load_sections_with_nba()
+    if not cached:
+        return None
+    nba_stats = load_nba_stats_cache()
+    if nba_stats is not None:
+        cached["nba_stats"] = nba_stats
+        logger.info("[server] nba_stats merged into sections response")
+    else:
+        logger.info("[server] nba_stats not available — briefing:nba_stats key missing or empty")
+    return cached
 
 
 def _find_story(story_id: str) -> dict | None:

@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 SECTIONS_KEY = "briefing:sections"
 SUMMARIES_KEY = "briefing:summaries"
 CACHE_DATE_KEY = "briefing:cache_date"
+NBA_STATS_KEY = "briefing:nba_stats"
 
 # TTL of 28 hours — slightly more than a day so the cron job
 # has time to run before stale data expires
@@ -143,3 +144,37 @@ def save_summaries_cache(summaries: dict) -> None:
         raise
     except Exception as e:
         logger.warning(f"[redis_cache] Could not write summaries cache: {e}")
+
+
+# ── NBA Stats ──────────────────────────────────────────────────────────────────
+
+def save_nba_stats_cache(data: dict) -> None:
+    """Writes NBA game stats to Redis with a 28-hour TTL."""
+    try:
+        client = _get_client()
+        client.set(NBA_STATS_KEY, json.dumps(data), ex=CACHE_TTL_SECONDS)
+        logger.info("[redis_cache] NBA stats cache written")
+
+    except EnvironmentError:
+        raise
+    except Exception as e:
+        logger.warning(f"[redis_cache] Could not write NBA stats cache: {e}")
+
+
+def load_nba_stats_cache() -> dict | None:
+    """Returns cached NBA stats dict, or None if missing or unreadable."""
+    try:
+        client = _get_client()
+        raw = client.get(NBA_STATS_KEY)
+        if not raw:
+            logger.info("[redis_cache] NBA stats cache miss")
+            return None
+        data = json.loads(raw)
+        logger.info("[redis_cache] NBA stats cache hit")
+        return data
+
+    except EnvironmentError:
+        raise
+    except Exception as e:
+        logger.warning(f"[redis_cache] Could not load NBA stats cache: {e}")
+        return None
