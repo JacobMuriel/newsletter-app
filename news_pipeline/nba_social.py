@@ -6,7 +6,7 @@ import os
 import re
 from datetime import date, timedelta
 
-from openai import OpenAI  # xAI uses the same SDK interface as OpenAI
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +25,6 @@ def get_nba_social_buzz() -> dict | None:
         logger.warning("[nba_social] GROK_API_KEY not set — skipping social buzz")
         return None
 
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.x.ai/v1",
-    )
-
     today = date.today()
     yesterday = today - timedelta(days=1)
 
@@ -41,43 +36,60 @@ def get_nba_social_buzz() -> dict | None:
     yesterday_str = yesterday.strftime("%B %-d, %Y")
 
     prompt = f"""
-Today's date is {today_str}. Search X (Twitter) for posts made on {yesterday_str} and \
-{today_str} up to the current time.
+Today is {today_str}. Search X (Twitter) for NBA posts from {yesterday_str} and {today_str}.
 
-Important: every game result, player name, and storyline you return must be verifiable \
-from X posts dated {yesterday_str} or {today_str}. Do not infer, extrapolate, or fill \
-gaps with training data.
+Use your x_search tool to find posts about:
+- The Houston Rockets game on {yesterday_str}
+- The Chicago Bulls game on {yesterday_str}
+- The top NBA storylines from {yesterday_str}
 
-Never use vague references like "a star player" or "a contending team." Always name the \
-specific player, team, and game. If you cannot identify specific names from X posts, \
-omit that item entirely rather than generalizing.
+Then return ONLY a raw JSON object in exactly this format — no markdown, no prose, no explanation.
 
-The NBA trade deadline has already passed for the 2025-26 season. Do not include trade \
-rumors or trade deadline content.
+Rules:
+- Use specific player names, teams, and scores from what you find on X. Never use vague language like "a star player."
+- If a team played on {yesterday_str}, you MUST populate their buzz object with the score, opponent, result, sentiment, and 2-3 paraphrased fan/analyst reactions. Do NOT set to null if they played.
+- Only set rockets_buzz or bulls_buzz to null if that team had no game scheduled on {yesterday_str}.
+- league_buzz must contain 2-3 items about other teams — there is always NBA news worth reporting.
+- Do not include trade deadline content (deadline has passed for 2025-26).
 
-Do the following:
-
-1. Check if the Houston Rockets played an NBA game on {yesterday_str}.
-   - If yes: summarize what fans and analysts on X are saying about the game.
-     Draw from both the in-game/post-game reactions on {yesterday_str} and the
-     morning-after analysis posted on {today_str}.
-     Include the final score, 2-3 reactions (paraphrased, not verbatim quotes),
-     and the overall sentiment (positive / negative / mixed).
-   - If no game was played: set rockets_buzz to null.
-
-2. Check if the Chicago Bulls played an NBA game on {yesterday_str}.
-   - Same format as above, including both last night's reactions and today's takes.
-   - If no game was played: set bulls_buzz to null.
-
-3. Summarize the 2-3 most-discussed NBA storylines on X from {yesterday_str} and \
-{today_str} that are NOT about the Rockets or Bulls.
-   These could be a standout performance, injury news, controversy, or playoff
-   standings movement generating significant discussion.
-   For each item: if you are not confident it actually happened on {yesterday_str}
-   based on real X posts, omit it. You must return at least 2 items — the NBA
-   always has meaningful storylines worth discussing.
-
-Return ONLY valid JSON. No markdown, no code fences, no explanation — raw JSON only.
+JSON format:
+{{
+  "rockets_buzz": {{
+    "played": true,
+    "opponent": "Team Name",
+    "score": "112-108",
+    "result": "win",
+    "sentiment": "positive",
+    "reactions": [
+      "Paraphrased fan or analyst reaction 1",
+      "Paraphrased fan or analyst reaction 2",
+      "Paraphrased hot take or notable comment"
+    ]
+  }},
+  "bulls_buzz": {{
+    "played": true,
+    "opponent": "Team Name",
+    "score": "98-104",
+    "result": "loss",
+    "sentiment": "negative",
+    "reactions": [
+      "Paraphrased reaction 1",
+      "Paraphrased reaction 2",
+      "Paraphrased reaction 3"
+    ]
+  }},
+  "league_buzz": [
+    {{
+      "topic": "Short topic label",
+      "summary": "2-3 sentence summary of what fans and analysts are saying on X"
+    }},
+    {{
+      "topic": "Short topic label",
+      "summary": "2-3 sentence summary"
+    }}
+  ],
+  "data_date": "{yesterday_str}"
+}}
 
 {{
   "rockets_buzz": {{
@@ -121,13 +133,34 @@ If rockets_buzz or bulls_buzz is null because no game was played, use JSON null 
 """
 
     try:
-        response = client.chat.completions.create(
-            model="grok-3",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,  # low temp = more factual, less hallucination risk
+        resp = httpx.post(
+            "https://api.x.ai/v1/responses",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "grok-4-fast-non-reasoning",
+                "input": [{"role": "user", "content": prompt}],
+                "tools": [{"type": "x_search"}],
+                "temperature": 0.2,
+            },
+            timeout=60,
         )
+        resp.raise_for_status()
+        data = resp.json()
 
-        raw = response.choices[0].message.content.strip()
+        x_calls = data.get("usage", {}).get("server_side_tool_usage_details", {}).get("x_search_calls", 0)
+        logger.info(f"[nba_social] Grok made {x_calls} X search calls")
+
+        # Extract text from the final assistant message in the output list
+        message = next(
+            (item for item in reversed(data.get("output", []))
+             if item.get("type") == "message" and item.get("role") == "assistant"),
+            None,
+        )
+        if not message:
+            logger.error("[nba_social] No assistant message in Grok response")
+            return None
+
+        raw = message["content"][0]["text"].strip()
         logger.info(f"[nba_social] Raw Grok response:\n{raw}")
 
         # Strip any accidental markdown fences Grok might add despite instructions
