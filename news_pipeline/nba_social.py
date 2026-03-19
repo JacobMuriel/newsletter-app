@@ -122,12 +122,13 @@ If rockets_buzz or bulls_buzz is null because no game was played, use JSON null 
 
     try:
         response = client.chat.completions.create(
-            model="grok-3",
+            model="grok-2-1212",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,  # low temp = more factual, less hallucination risk
         )
 
         raw = response.choices[0].message.content.strip()
+        logger.info(f"[nba_social] Raw Grok response:\n{raw}")
 
         # Strip any accidental markdown fences Grok might add despite instructions
         raw = re.sub(r"^```[a-z]*\n?", "", raw)
