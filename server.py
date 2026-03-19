@@ -172,7 +172,7 @@ async def summary(body: SummaryRequest):
 
 def _load_sections_with_nba() -> dict | None:
     """Load sections from Redis and inject nba_stats as a top-level key."""
-    cached = _load_sections_with_nba()
+    cached = load_sections_cache()
     if not cached:
         return None
     nba_stats = load_nba_stats_cache()
