@@ -1,0 +1,33 @@
+name: Daily Pipeline
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * *"   # 7am US Central (UTC-5)
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline and write to Redis
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_ENABLED: "true"
+          OPENAI_MODEL: "gpt-4o-mini"
+          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
+          GROK_ENABLED: "true"
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: python cron_pipeline.py
