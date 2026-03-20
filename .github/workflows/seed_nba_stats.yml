@@ -1,0 +1,58 @@
+name: Seed NBA Stats (test/debug)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "'test' writes hardcoded data, 'live' calls nba_api"
+        required: true
+        default: "test"
+        type: choice
+        options:
+          - test
+          - live
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run in test mode (hardcoded data → Redis)
+        if: ${{ inputs.mode == 'test' }}
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: python scripts/seed_nba_stats.py
+
+      - name: Run in live mode (nba_api → Redis)
+        if: ${{ inputs.mode == 'live' }}
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          python - <<'EOF'
+          import sys, json, logging
+          logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+          from news_pipeline.nba_stats import get_nba_game_stats
+          from news_pipeline.redis_cache import save_nba_stats_cache
+
+          print("Calling get_nba_game_stats()...")
+          result = get_nba_game_stats()
+          if result is None:
+              print("FAILED — get_nba_game_stats() returned None")
+              sys.exit(1)
+
+          print(f"SUCCESS — {len(result['all_games'])} games")
+          print(json.dumps(result, indent=2))
+          save_nba_stats_cache(result)
+          print("Written to Redis.")
+          EOF
