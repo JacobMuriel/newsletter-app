@@ -75,6 +75,7 @@ class Story:
     section_note: str = ""
     left_take: str = ""
     right_take: str = ""
+    source_balance: str = ""
     confidence_label: str = "Low"
     confidence_reason: str = ""
     matched_keywords: list[str] = field(default_factory=list)

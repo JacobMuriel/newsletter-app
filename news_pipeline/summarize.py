@@ -17,15 +17,16 @@ SYSTEM_PROMPT = """
 You are writing entries for a daily personalized news briefing that synthesizes multiple sources into clean, informative summaries.
 
 Return valid JSON with exactly these keys:
-headline, confirmed_facts, why_it_matters, section_note_label, section_note, left_take, right_take, newsletter_blurb
+headline, confirmed_facts, why_it_matters, section_note_label, section_note, left_take, right_take, newsletter_blurb, source_balance
 
 Field guidelines:
 - headline: A clean, specific title for this story (10–16 words). Do not start with "Breaking". Avoid vague words like "new", "latest", "update".
-- confirmed_facts: 4–6 sentences of verified, wire-service-style reporting. Report only verifiable facts: specific names, numbers, dates, locations, and the sequence of events. Strip all evaluative or emotional language. Do not characterize motivations. Do not use words like "slammed", "failed", "radical", "alarming", or any loaded framing. Write as if you are a wire service reporter filing for the record. If only one source was supplied, begin with "Single-source early report:" and cover the key facts as fully as possible.
-- why_it_matters: 2–3 sentences explaining the concrete real-world stakes. Be specific: name who is affected, what could change as a result, what decision or trend this is part of, and what comes next. Go beyond generic phrases—explain the actual consequence for markets, policy, people, or institutions.
+- confirmed_facts: 4–6 sentences of verified, wire-service-style reporting. Report only verifiable facts: specific names, numbers, dates, locations, and the sequence of events. Strip all evaluative or emotional language. Do not characterize motivations. Do not use words like "slammed", "failed", "radical", "alarming", "threatens", "undermines", "dangerous", "unprecedented", or any loaded framing. Before writing each sentence, apply this test: could a reporter from Fox News and a reporter from NPR both agree this sentence is accurate and fairly worded? If not, rewrite it. Write as if you are a wire service reporter filing for the record. If only one source was supplied, begin with "Single-source early report:" and cover the key facts as fully as possible.
+- why_it_matters: 2–3 sentences explaining the concrete real-world stakes. Be specific: name who is affected, what could change as a result, what decision or trend this is part of, and what comes next. Use only consequentialist language — name the concrete effect, the policy that changes, the number that moves, the institution that acts. Do not use "threatens", "undermines", "dangerous", "alarming", or any framing that implies a value judgment. Apply the same test: could a Fox News reporter and an NPR reporter both nod at this sentence?
 - section_note_label / section_note: Use only for "markets", "finance_market_structure", and "ai" sections. Provide a short label and a specific note relevant to that section (e.g., regulatory impact, market reaction, competitive angle). Leave both empty for "top" and "nba".
 - left_take / right_take: For "top" section stories, always provide both takes. For left_take: describe how left-leaning media would frame this story's significance and who they would say is responsible or at fault. For right_take: describe how right-leaning media would frame this story's significance and who they would say is responsible or at fault. Where the supplied sources show a clear ideological lean, attribute the framing to those specific outlets (e.g., "Reuters and AP focus on X, while Fox News emphasizes Y"). Base this on the actual source material where possible, and on well-established ideological patterns otherwise. Return an empty string only if the story is genuinely nonpartisan with no conceivable framing difference (extremely rare). NEVER populate for ai, markets, finance_market_structure, or nba sections.
 - newsletter_blurb: 2–3 sentences synthesizing the main development in plain English. Write as if explaining to a smart friend who hasn't read the news. Must synthesize across the cluster, not simply paraphrase one article.
+- source_balance: A single short sentence describing the ideological mix of sources used, e.g. "Sources lean left (NYT, Guardian, NPR) with no right-leaning coverage available." or "Sources are ideologically balanced (Reuters, Fox News, NPR, Vox)." This is shown to the user as a transparency note.
 
 Synthesis rules:
 - You will receive multiple source articles. Synthesize across ALL of them — do not rely on only the first article.
@@ -170,6 +171,7 @@ def _summarize_with_openai(client: OpenAI, story: Story, settings: dict[str, Any
                 right_take=payload.get("right_take", "").strip(),
             )
             story.newsletter_blurb = payload.get("newsletter_blurb", "").strip() or _fallback_blurb(story)
+            story.source_balance = payload.get("source_balance", "").strip()
             story.confidence_label, story.confidence_reason = _score_confidence(story, settings)
             return
         except Exception as exc:
@@ -211,10 +213,14 @@ _SECTION_GUIDANCE: dict[str, str] = {
 
 
 def _build_story_prompt(story: Story) -> str:
+    articles = story.articles[:8]
     article_blocks = "\n\n".join(
         f"Source: {article.source_name}\n{article.snippet[:320]}"
-        for article in story.articles[:8]
+        for article in articles
     )
+    caveat = _ideology_caveat(articles)
+    if caveat:
+        article_blocks = article_blocks + "\n\n" + caveat
     context = {
         "cluster_id": story.cluster_id,
         "section": story.category,
@@ -228,6 +234,44 @@ def _build_story_prompt(story: Story) -> str:
     return json.dumps(context, indent=2)
 
 
+def _ideology_caveat(articles: list) -> str:
+    labeled = [a.source_label for a in articles if a.source_label in {"left", "center", "right"}]
+    if not labeled:
+        return ""
+    has_left = "left" in labeled
+    has_center = "center" in labeled
+    has_right = "right" in labeled
+    # Balanced: at least one (left or center) AND at least one right
+    if (has_left or has_center) and has_right:
+        return ""
+    # Center only — inherently balanced
+    if not has_left and not has_right:
+        return ""
+    # All right, no left or center
+    if has_right and not has_left and not has_center:
+        return (
+            "Note: available sources for this story are predominantly right-leaning. "
+            "Write confirmed_facts and why_it_matters to be fair to perspectives not represented in the source material."
+        )
+    # All left, no center or right
+    if has_left and not has_center and not has_right:
+        return (
+            "Note: available sources for this story are predominantly left-leaning. "
+            "Write confirmed_facts and why_it_matters to be fair to perspectives not represented in the source material."
+        )
+    # Mixed (left and/or center) but no right
+    if not has_right:
+        return (
+            "Note: no right-leaning sources were available for this story. "
+            "Write confirmed_facts and why_it_matters to be fair to perspectives not represented."
+        )
+    # Mixed (right and center) but no left
+    return (
+        "Note: no left-leaning sources were available for this story. "
+        "Write confirmed_facts and why_it_matters to be fair to perspectives not represented."
+    )
+
+
 def _apply_fallback_summary(story: Story, settings: dict[str, Any]) -> None:
     story.title = story.representative_headline or story.title
     story.confirmed_facts = _fallback_confirmed_facts(story)
@@ -235,6 +279,7 @@ def _apply_fallback_summary(story: Story, settings: dict[str, Any]) -> None:
     story.section_note_label, story.section_note = _resolve_section_note(story=story, proposed_label="", proposed_note="")
     story.left_take, story.right_take = _resolve_bias_fields(story=story, left_take="", right_take="")
     story.newsletter_blurb = _fallback_blurb(story)
+    story.source_balance = ""
     story.confidence_label, story.confidence_reason = _score_confidence(story, settings)
 
 

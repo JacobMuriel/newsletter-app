@@ -194,6 +194,7 @@ def _story_to_dict(story: Story, sid: str) -> dict:
         "section": story.category,
         "bias_flags": list(story.charged_sources.keys()) if story.charged_sources else [],
         "has_left_right": story.category == "top",
+        "source_balance": story.source_balance,
     }
 
 
