@@ -29,6 +29,7 @@ from news_pipeline.models import FeedSource, Story
 from news_pipeline.quality import filter_story_quality
 from news_pipeline.rank import rank_stories
 from news_pipeline.summarize import summarize_stories
+from news_pipeline.topic_group import group_stories_by_topic
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,9 @@ def get_ranked_stories() -> dict:
 
     clustered = cluster_articles(raw_articles, settings["clustering"])
     logger.info("[perf] Clustering: %.1fs (%d clusters)", time.time() - t1, len(clustered))
+
+    clustered = group_stories_by_topic(clustered, settings, os.getenv("OPENAI_API_KEY"))
+    logger.info("[perf] Topic grouping: %d clusters after merge", len(clustered))
     t2 = time.time()
 
     categorized = categorize_stories(clustered, settings["categorization"])
