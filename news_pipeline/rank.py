@@ -9,7 +9,7 @@ from news_pipeline.models import Story
 
 logger = logging.getLogger(__name__)
 
-_TOP_MIN_SOURCES = 3
+_TOP_MIN_SOURCES = 6
 
 
 def rank_stories(stories: list[Story], settings: dict[str, Any]) -> list[Story]:

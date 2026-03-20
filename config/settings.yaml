@@ -1,7 +1,7 @@
 pipeline:
-  max_items_per_feed: 15
-  max_total_stories_fetched: 80
-  max_stories_to_rank: 45
+  max_items_per_feed: 25
+  max_total_stories_fetched: 400
+  max_stories_to_rank: 120
   max_stories_to_summarize: 18
   output_directory: output
   openai_enabled: true
@@ -11,7 +11,7 @@ pipeline:
 clustering:
   min_similarity: 0.53
   merge_similarity: 0.58
-  max_cluster_articles: 5
+  max_cluster_articles: 12
   entity_overlap_min: 2
   entity_bonus: 0.04
   geopolitics_bonus: 0.05
