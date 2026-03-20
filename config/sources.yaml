@@ -1,11 +1,15 @@
 sources:
+
+  # ── Tier 1: Wire Services ─────────────────────────────────────────────────
+  # Primary ground truth. Factual, fast, globally distributed.
+
   - name: Reuters World
     feed_url: https://feeds.reuters.com/Reuters/worldNews
     ideology_label: center
     enabled: true
     tags: [global, geopolitics]
     outlet_group: Reuters
-    reliability_weight: 1.4
+    reliability_weight: 1.5
 
   - name: Reuters Business
     feed_url: https://feeds.reuters.com/reuters/businessNews
@@ -13,7 +17,58 @@ sources:
     enabled: true
     tags: [markets, business]
     outlet_group: Reuters
-    reliability_weight: 1.4
+    reliability_weight: 1.5
+
+  - name: Associated Press
+    feed_url: https://feeds.apnews.com/rss/apf-topnews
+    ideology_label: center
+    enabled: true
+    tags: [global, national, politics]
+    outlet_group: AP
+    reliability_weight: 1.5
+
+  - name: AP Politics
+    feed_url: https://feeds.apnews.com/rss/apf-politics
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: AP
+    reliability_weight: 1.5
+
+  - name: AP US News
+    feed_url: https://feeds.apnews.com/rss/apf-usnews
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: AP
+    reliability_weight: 1.5
+
+  - name: AP World News
+    feed_url: https://feeds.apnews.com/rss/apf-intlnews
+    ideology_label: center
+    enabled: true
+    tags: [global, geopolitics]
+    outlet_group: AP
+    reliability_weight: 1.5
+
+  # ── Tier 2: Major Broadcast & Print ──────────────────────────────────────
+  # High-trust mastheads with broad coverage across politics and world news.
+
+  - name: BBC World News
+    feed_url: http://feeds.bbci.co.uk/news/world/rss.xml
+    ideology_label: center
+    enabled: true
+    tags: [global, geopolitics]
+    outlet_group: BBC
+    reliability_weight: 1.35
+
+  - name: BBC News
+    feed_url: http://feeds.bbci.co.uk/news/rss.xml
+    ideology_label: center
+    enabled: true
+    tags: [global, national]
+    outlet_group: BBC
+    reliability_weight: 1.35
 
   - name: New York Times Home
     feed_url: https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
@@ -21,7 +76,202 @@ sources:
     enabled: true
     tags: [national, politics]
     outlet_group: New York Times
+    reliability_weight: 1.3
+
+  - name: New York Times US
+    feed_url: https://rss.nytimes.com/services/xml/rss/nyt/US.xml
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: New York Times
+    reliability_weight: 1.3
+
+  - name: New York Times World
+    feed_url: https://rss.nytimes.com/services/xml/rss/nyt/World.xml
+    ideology_label: left
+    enabled: true
+    tags: [global, geopolitics]
+    outlet_group: New York Times
+    reliability_weight: 1.3
+
+  - name: Wall Street Journal
+    feed_url: https://feeds.a.dj.com/rss/RSSWorldNews.xml
+    ideology_label: right
+    enabled: true
+    tags: [national, markets, politics]
+    outlet_group: Wall Street Journal
+    reliability_weight: 1.3
+
+  - name: Wall Street Journal US
+    feed_url: https://feeds.a.dj.com/rss/RSSWSJD.xml
+    ideology_label: right
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Wall Street Journal
+    reliability_weight: 1.3
+
+  - name: NPR News
+    feed_url: https://feeds.npr.org/1001/rss.xml
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: NPR
     reliability_weight: 1.25
+
+  - name: NPR Politics
+    feed_url: https://feeds.npr.org/1014/rss.xml
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: NPR
+    reliability_weight: 1.25
+
+  - name: CBS News
+    feed_url: https://www.cbsnews.com/latest/rss/main
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: CBS News
+    reliability_weight: 1.2
+
+  - name: ABC News
+    feed_url: https://feeds.abcnews.com/abcnews/topstories
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: ABC News
+    reliability_weight: 1.2
+
+  - name: NBC News
+    feed_url: https://feeds.nbcnews.com/nbcnews/public/news
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: NBC News
+    reliability_weight: 1.2
+
+  - name: PBS NewsHour
+    feed_url: https://www.pbs.org/newshour/feeds/rss/headlines
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: PBS
+    reliability_weight: 1.2
+
+  - name: USA Today
+    feed_url: http://rssfeeds.usatoday.com/usatoday-NewsTopStories
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: USA Today
+    reliability_weight: 1.1
+
+  # ── Tier 3: Established Political / International ─────────────────────────
+  # Reliable but with editorial voice or narrower scope.
+
+  - name: The Guardian World
+    feed_url: https://www.theguardian.com/world/rss
+    ideology_label: left
+    enabled: true
+    tags: [global, politics]
+    outlet_group: The Guardian
+    reliability_weight: 1.15
+
+  - name: The Guardian US
+    feed_url: https://www.theguardian.com/us-news/rss
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: The Guardian
+    reliability_weight: 1.15
+
+  - name: Politico
+    feed_url: https://www.politico.com/rss/politicopicks.xml
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Politico
+    reliability_weight: 1.15
+
+  - name: Axios
+    feed_url: https://api.axios.com/feed/
+    ideology_label: center
+    enabled: true
+    tags: [national, politics, business]
+    outlet_group: Axios
+    reliability_weight: 1.1
+
+  - name: The Hill
+    feed_url: https://thehill.com/feed/
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: The Hill
+    reliability_weight: 1.0
+
+  - name: CNN
+    feed_url: https://rss.cnn.com/rss/cnn_topstories.rss
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: CNN
+    reliability_weight: 1.05
+
+  - name: CNN World
+    feed_url: https://rss.cnn.com/rss/edition_world.rss
+    ideology_label: left
+    enabled: true
+    tags: [global, geopolitics]
+    outlet_group: CNN
+    reliability_weight: 1.05
+
+  - name: Al Jazeera English
+    feed_url: https://www.aljazeera.com/xml/rss/all.xml
+    ideology_label: center
+    enabled: true
+    tags: [global, geopolitics]
+    outlet_group: Al Jazeera
+    reliability_weight: 1.05
+
+  - name: Sky News World
+    feed_url: https://feeds.skynews.com/feeds/rss/world.xml
+    ideology_label: center
+    enabled: true
+    tags: [global, geopolitics]
+    outlet_group: Sky News
+    reliability_weight: 1.0
+
+  - name: The Independent
+    feed_url: https://www.independent.co.uk/news/rss
+    ideology_label: left
+    enabled: true
+    tags: [global, national, politics]
+    outlet_group: The Independent
+    reliability_weight: 1.0
+
+  - name: Time
+    feed_url: https://time.com/feed/
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Time
+    reliability_weight: 1.0
+
+  - name: Newsweek
+    feed_url: https://www.newsweek.com/rss
+    ideology_label: center
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Newsweek
+    reliability_weight: 0.95
+
+  - name: The Atlantic
+    feed_url: https://www.theatlantic.com/feed/all/
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: The Atlantic
+    reliability_weight: 1.1
 
   - name: Fox News Politics
     feed_url: https://feeds.foxnews.com/foxnews/politics
@@ -30,6 +280,91 @@ sources:
     tags: [national, politics]
     outlet_group: Fox News
     reliability_weight: 1.0
+
+  - name: Fox News Latest
+    feed_url: https://feeds.foxnews.com/foxnews/latest
+    ideology_label: right
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Fox News
+    reliability_weight: 1.0
+
+  # ── Tier 4: Ideologically Distinct / Opinion-Forward ─────────────────────
+  # Useful for cross-ideological corroboration and left/right framing signals.
+
+  - name: New York Post
+    feed_url: https://nypost.com/feed/
+    ideology_label: right
+    enabled: true
+    tags: [national, politics]
+    outlet_group: New York Post
+    reliability_weight: 0.85
+
+  - name: Washington Examiner
+    feed_url: https://www.washingtonexaminer.com/news.rss
+    ideology_label: right
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Washington Examiner
+    reliability_weight: 0.9
+
+  - name: National Review
+    feed_url: https://www.nationalreview.com/feed/
+    ideology_label: right
+    enabled: true
+    tags: [national, politics]
+    outlet_group: National Review
+    reliability_weight: 0.9
+
+  - name: The Federalist
+    feed_url: https://thefederalist.com/feed/
+    ideology_label: right
+    enabled: true
+    tags: [national, politics]
+    outlet_group: The Federalist
+    reliability_weight: 0.8
+
+  - name: Daily Caller
+    feed_url: https://dailycaller.com/feed/
+    ideology_label: right
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Daily Caller
+    reliability_weight: 0.75
+
+  - name: Breitbart
+    feed_url: https://feeds.feedburner.com/breitbart
+    ideology_label: right
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Breitbart
+    reliability_weight: 0.7
+
+  - name: Vox
+    feed_url: https://www.vox.com/rss/index.xml
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Vox
+    reliability_weight: 0.9
+
+  - name: HuffPost
+    feed_url: https://www.huffpost.com/section/front-page/feed
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: HuffPost
+    reliability_weight: 0.8
+
+  - name: Slate
+    feed_url: https://slate.com/feeds/all.rss
+    ideology_label: left
+    enabled: true
+    tags: [national, politics]
+    outlet_group: Slate
+    reliability_weight: 0.8
+
+  # ── Finance & Markets ─────────────────────────────────────────────────────
 
   - name: CNBC Markets
     feed_url: https://www.cnbc.com/id/100003114/device/rss/rss.html
@@ -47,6 +382,24 @@ sources:
     outlet_group: Dow Jones
     reliability_weight: 1.0
 
+  - name: SEC Press Releases
+    feed_url: https://www.sec.gov/rss/news/press.xml
+    ideology_label: neutral
+    enabled: true
+    tags: [regulation, finance_market_structure]
+    outlet_group: SEC
+    reliability_weight: 1.5
+
+  - name: CFTC Press Releases
+    feed_url: https://www.cftc.gov/RSS/CFTCPressReleases.xml
+    ideology_label: neutral
+    enabled: true
+    tags: [regulation, derivatives, finance_market_structure]
+    outlet_group: CFTC
+    reliability_weight: 1.5
+
+  # ── Technology & AI ───────────────────────────────────────────────────────
+
   - name: VentureBeat AI
     feed_url: https://venturebeat.com/ai/feed/
     ideology_label: tech
@@ -63,21 +416,23 @@ sources:
     outlet_group: Ars Technica
     reliability_weight: 1.1
 
-  - name: SEC Press Releases
-    feed_url: https://www.sec.gov/rss/news/press.xml
-    ideology_label: neutral
+  - name: The Verge
+    feed_url: https://www.theverge.com/rss/index.xml
+    ideology_label: tech
     enabled: true
-    tags: [regulation, finance_market_structure]
-    outlet_group: SEC
-    reliability_weight: 1.5
+    tags: [technology, ai]
+    outlet_group: The Verge
+    reliability_weight: 1.05
 
-  - name: CFTC Press Releases
-    feed_url: https://www.cftc.gov/RSS/CFTCPressReleases.xml
-    ideology_label: neutral
+  - name: TechCrunch
+    feed_url: https://techcrunch.com/feed/
+    ideology_label: tech
     enabled: true
-    tags: [regulation, derivatives, finance_market_structure]
-    outlet_group: CFTC
-    reliability_weight: 1.5
+    tags: [technology, ai, startups]
+    outlet_group: TechCrunch
+    reliability_weight: 1.0
+
+  # ── NBA & Sports ──────────────────────────────────────────────────────────
 
   - name: ESPN NBA
     feed_url: https://www.espn.com/espn/rss/nba/news
@@ -102,107 +457,3 @@ sources:
     tags: [nba, sports]
     outlet_group: CBS Sports
     reliability_weight: 0.9
-
-  - name: BBC World News
-    feed_url: http://feeds.bbci.co.uk/news/world/rss.xml
-    ideology_label: center
-    enabled: true
-    tags: [global, geopolitics]
-    outlet_group: BBC
-    reliability_weight: 1.3
-
-  - name: The Guardian World
-    feed_url: https://www.theguardian.com/world/rss
-    ideology_label: left
-    enabled: true
-    tags: [global, politics]
-    outlet_group: The Guardian
-    reliability_weight: 1.15
-
-  - name: The Hill
-    feed_url: https://thehill.com/feed/
-    ideology_label: center
-    enabled: true
-    tags: [national, politics]
-    outlet_group: The Hill
-    reliability_weight: 1.0
-
-  - name: Politico
-    feed_url: https://www.politico.com/rss/politicopicks.xml
-    ideology_label: center
-    enabled: true
-    tags: [national, politics]
-    outlet_group: Politico
-    reliability_weight: 1.15
-
-  - name: The Verge
-    feed_url: https://www.theverge.com/rss/index.xml
-    ideology_label: tech
-    enabled: true
-    tags: [technology, ai]
-    outlet_group: The Verge
-    reliability_weight: 1.05
-
-  - name: TechCrunch
-    feed_url: https://techcrunch.com/feed/
-    ideology_label: tech
-    enabled: true
-    tags: [technology, ai, startups]
-    outlet_group: TechCrunch
-    reliability_weight: 1.0
-
-  - name: Axios
-    feed_url: https://api.axios.com/feed/
-    ideology_label: center
-    enabled: true
-    tags: [national, politics, business]
-    outlet_group: Axios
-    reliability_weight: 1.1
-
-  - name: Associated Press
-    feed_url: https://feeds.apnews.com/rss/apf-topnews
-    ideology_label: center
-    enabled: true
-    tags: [global, national, politics]
-    outlet_group: AP
-    reliability_weight: 1.45
-
-  - name: NPR News
-    feed_url: https://feeds.npr.org/1001/rss.xml
-    ideology_label: left
-    enabled: true
-    tags: [national, politics]
-    outlet_group: NPR
-    reliability_weight: 1.2
-
-  - name: Wall Street Journal
-    feed_url: https://feeds.a.dj.com/rss/RSSWorldNews.xml
-    ideology_label: right
-    enabled: true
-    tags: [national, markets, politics]
-    outlet_group: Wall Street Journal
-    reliability_weight: 1.3
-
-  - name: Washington Examiner
-    feed_url: https://www.washingtonexaminer.com/news.rss
-    ideology_label: right
-    enabled: true
-    tags: [national, politics]
-    outlet_group: Washington Examiner
-    reliability_weight: 1.0
-
-  - name: National Review
-    feed_url: https://www.nationalreview.com/feed/
-    ideology_label: right
-    enabled: true
-    tags: [national, politics]
-    outlet_group: National Review
-    reliability_weight: 0.95
-
-  - name: The Atlantic
-    feed_url: https://www.theatlantic.com/feed/all/
-    ideology_label: left
-    enabled: true
-    tags: [national, politics]
-    outlet_group: The Atlantic
-    reliability_weight: 1.1

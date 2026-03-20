@@ -1,7 +1,7 @@
 pipeline:
   max_items_per_feed: 25
-  max_total_stories_fetched: 400
-  max_stories_to_rank: 120
+  max_total_stories_fetched: 800
+  max_stories_to_rank: 150
   max_stories_to_summarize: 18
   output_directory: output
   openai_enabled: true
@@ -9,8 +9,8 @@ pipeline:
   dry_run: false
 
 clustering:
-  min_similarity: 0.53
-  merge_similarity: 0.58
+  min_similarity: 0.44
+  merge_similarity: 0.50
   max_cluster_articles: 12
   entity_overlap_min: 2
   entity_bonus: 0.04
@@ -223,18 +223,47 @@ categorization:
         - Reuters World
         - Reuters Business
         - Associated Press
+        - AP Politics
+        - AP US News
+        - AP World News
         - New York Times Home
-        - Fox News Politics
+        - New York Times US
+        - New York Times World
         - BBC World News
+        - BBC News
+        - NPR News
+        - NPR Politics
+        - Wall Street Journal
+        - Wall Street Journal US
+        - CBS News
+        - ABC News
+        - NBC News
+        - PBS NewsHour
+        - USA Today
         - The Guardian World
+        - The Guardian US
+        - Fox News Politics
+        - Fox News Latest
+        - CNN
+        - CNN World
         - The Hill
         - Politico
         - Axios
-        - NPR News
-        - Wall Street Journal
+        - The Atlantic
+        - Al Jazeera English
+        - Sky News World
+        - The Independent
+        - Time
+        - Newsweek
+        - New York Post
         - Washington Examiner
         - National Review
-        - The Atlantic
+        - The Federalist
+        - Daily Caller
+        - Breitbart
+        - Vox
+        - HuffPost
+        - Slate
       strong_keywords:
         - white house
         - congress
@@ -290,46 +319,91 @@ ranking:
   source_priority:
     default: 1.0
     weights:
+      # Tier 1: Wire Services
       Reuters World: 4.0
       Reuters Business: 4.0
       Associated Press: 4.0
-      AP: 4.0
+      AP Politics: 4.0
+      AP US News: 4.0
+      AP World News: 4.0
       SEC Press Releases: 4.0
       CFTC Press Releases: 4.0
+      # Tier 2: Major Broadcast & Print
+      BBC World News: 3.5
+      BBC News: 3.5
       New York Times Home: 3.0
+      New York Times US: 3.0
+      New York Times World: 3.0
+      Wall Street Journal: 3.0
+      Wall Street Journal US: 3.0
+      NPR News: 3.0
+      NPR Politics: 3.0
+      CBS News: 2.8
+      ABC News: 2.8
+      NBC News: 2.8
+      PBS NewsHour: 2.7
+      USA Today: 2.5
       CNBC Markets: 3.0
       Ars Technica: 3.0
-      BBC World News: 3.0
-      Wall Street Journal: 3.0
+      # Tier 3: Established Political / International
       The Guardian World: 2.5
+      The Guardian US: 2.5
       Politico: 2.5
-      The Hill: 2.0
       Axios: 2.5
-      NPR News: 2.5
+      The Hill: 2.0
+      CNN: 2.5
+      CNN World: 2.5
+      Al Jazeera English: 2.3
+      Sky News World: 2.2
+      The Independent: 2.2
+      Time: 2.0
+      Newsweek: 2.0
+      The Atlantic: 2.0
+      Fox News Politics: 2.0
+      Fox News Latest: 2.0
       The Verge: 2.0
       TechCrunch: 2.0
       MarketWatch Top Stories: 2.0
-      Fox News Politics: 2.0
-      ESPN NBA: 2.0
-      Bleacher Report NBA: 1.2
-      CBS Sports NBA: 1.4
       VentureBeat AI: 2.0
-      Washington Examiner: 2.0
+      ESPN NBA: 2.0
+      CBS Sports NBA: 1.4
+      Bleacher Report NBA: 1.2
+      # Tier 4: Ideologically Distinct
+      New York Post: 1.5
+      Washington Examiner: 1.5
       National Review: 1.5
-      The Atlantic: 2.0
+      The Federalist: 1.2
+      Daily Caller: 1.2
+      Breitbart: 1.0
+      Vox: 1.5
+      HuffPost: 1.2
+      Slate: 1.2
     major_outlets:
       - Reuters World
       - Reuters Business
       - Associated Press
+      - AP Politics
+      - AP US News
+      - AP World News
+      - BBC World News
+      - BBC News
       - New York Times Home
-      - Fox News Politics
+      - New York Times US
+      - New York Times World
       - Wall Street Journal
+      - Wall Street Journal US
+      - NPR News
+      - NPR Politics
+      - CBS News
+      - ABC News
+      - NBC News
+      - Fox News Politics
       - CNBC Markets
       - Ars Technica
-      - BBC World News
       - Politico
       - Axios
-      - NPR News
+      - CNN
+      - Al Jazeera English
   keyword_sets:
     high_impact:
       - emergency
