@@ -184,6 +184,7 @@ def _story_to_dict(story: Story, sid: str) -> dict:
         "id": sid,
         "headline": story.representative_headline or story.title,
         "source": story.source_names[0] if story.source_names else "",
+        "sources": list({a.source_name for a in story.articles}),
         "url": story.primary_link,
         "published_at": story.latest_published_at.isoformat() if story.latest_published_at else None,
         "section": story.category,

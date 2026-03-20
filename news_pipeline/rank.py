@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime, timezone
 from typing import Any
 
 from news_pipeline.models import Story
+
+logger = logging.getLogger(__name__)
+
+_TOP_MIN_SOURCES = 3
 
 
 def rank_stories(stories: list[Story], settings: dict[str, Any]) -> list[Story]:
@@ -55,7 +60,23 @@ def rank_stories(stories: list[Story], settings: dict[str, Any]) -> list[Story]:
         ]
         story.refresh_metadata()
 
-    return sorted(stories, key=lambda story: story.importance_score, reverse=True)
+    ranked = sorted(stories, key=lambda story: story.importance_score, reverse=True)
+
+    filtered: list[Story] = []
+    for story in ranked:
+        if story.category == "top":
+            unique_sources = len({a.source_name for a in story.articles})
+            if unique_sources < _TOP_MIN_SOURCES:
+                logger.info(
+                    '[rank] dropping "%s" from top — only %d unique source%s',
+                    story.title,
+                    unique_sources,
+                    "" if unique_sources == 1 else "s",
+                )
+                continue
+        filtered.append(story)
+
+    return filtered
 
 
 def _count_keyword_hits(story_text: str, keywords: list[str]) -> int:

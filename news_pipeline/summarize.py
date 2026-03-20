@@ -24,10 +24,11 @@ Field guidelines:
 - confirmed_facts: 4–6 sentences of verified, wire-service-style reporting. Report only verifiable facts: specific names, numbers, dates, locations, and the sequence of events. Strip all evaluative or emotional language. Do not characterize motivations. Do not use words like "slammed", "failed", "radical", "alarming", or any loaded framing. Write as if you are a wire service reporter filing for the record. If only one source was supplied, begin with "Single-source early report:" and cover the key facts as fully as possible.
 - why_it_matters: 2–3 sentences explaining the concrete real-world stakes. Be specific: name who is affected, what could change as a result, what decision or trend this is part of, and what comes next. Go beyond generic phrases—explain the actual consequence for markets, policy, people, or institutions.
 - section_note_label / section_note: Use only for "markets", "finance_market_structure", and "ai" sections. Provide a short label and a specific note relevant to that section (e.g., regulatory impact, market reaction, competitive angle). Leave both empty for "top" and "nba".
-- left_take / right_take: For "top" section stories, always provide both takes. For left_take: describe how left-leaning media would frame this story's significance and who they would say is responsible or at fault. For right_take: describe how right-leaning media would frame this story's significance and who they would say is responsible or at fault. Base this on the topic and well-established ideological patterns—do not fabricate quotes or attribute specific claims to specific outlets. Return an empty string only if the story is genuinely nonpartisan with no conceivable framing difference (extremely rare). NEVER populate for ai, markets, finance_market_structure, or nba sections.
+- left_take / right_take: For "top" section stories, always provide both takes. For left_take: describe how left-leaning media would frame this story's significance and who they would say is responsible or at fault. For right_take: describe how right-leaning media would frame this story's significance and who they would say is responsible or at fault. Where the supplied sources show a clear ideological lean, attribute the framing to those specific outlets (e.g., "Reuters and AP focus on X, while Fox News emphasizes Y"). Base this on the actual source material where possible, and on well-established ideological patterns otherwise. Return an empty string only if the story is genuinely nonpartisan with no conceivable framing difference (extremely rare). NEVER populate for ai, markets, finance_market_structure, or nba sections.
 - newsletter_blurb: 2–3 sentences synthesizing the main development in plain English. Write as if explaining to a smart friend who hasn't read the news. Must synthesize across the cluster, not simply paraphrase one article.
 
 Synthesis rules:
+- You will receive multiple source articles. Synthesize across ALL of them — do not rely on only the first article.
 - Base every claim in confirmed_facts only on information present in the supplied articles. Do not add facts not in the articles.
 - confirmed_facts must reflect what multiple articles agree on, not one article's framing. If articles contradict each other on a key fact, note the discrepancy neutrally.
 - newsletter_blurb must synthesize across the cluster, not restate a single source.
@@ -210,16 +211,10 @@ _SECTION_GUIDANCE: dict[str, str] = {
 
 
 def _build_story_prompt(story: Story) -> str:
-    cluster_articles = [
-        {
-            "source": article.source_name,
-            "group": article.outlet_group or article.source_name,
-            "published": article.published_date,
-            "title": article.title,
-            "summary": article.snippet[:320],
-        }
-        for article in story.articles[:6]
-    ]
+    article_blocks = "\n\n".join(
+        f"Source: {article.source_name}\n{article.snippet[:320]}"
+        for article in story.articles[:8]
+    )
     context = {
         "cluster_id": story.cluster_id,
         "section": story.category,
@@ -228,7 +223,7 @@ def _build_story_prompt(story: Story) -> str:
         "source_count": story.source_count,
         "source_labels_present": story.source_labels_present,
         "ranking_notes": story.ranking_notes,
-        "articles": cluster_articles,
+        "articles": article_blocks,
     }
     return json.dumps(context, indent=2)
 
