@@ -150,8 +150,9 @@ The Twitter/X integration. Runs as part of the cron pipeline when `GROK_ENABLED=
 | `OPENAI_API_KEY` | Render + GitHub Secret | Story summarization |
 | `OPENAI_ENABLED` | Render + GitHub Actions | Toggle OpenAI (`true`) |
 | `OPENAI_MODEL` | Render + GitHub Actions | Model (`gpt-4o-mini`) |
-| `GROK_API_KEY` | Render + GitHub Secret | X social buzz |
-| `GROK_ENABLED` | Render + GitHub Actions | Toggle Grok (`true`) |
+| `GROK_API_KEY` | Render + GitHub Secret | X social buzz (shared by NBA and AI social) |
+| `GROK_ENABLED` | Render + GitHub Actions | Toggle NBA social buzz via Grok (`true`) |
+| `AI_SOCIAL_ENABLED` | Render + GitHub Actions | Toggle AI social buzz via Grok (default `false`) |
 | `UPSTASH_REDIS_REST_URL` | Render + GitHub Secret | Redis endpoint |
 | `UPSTASH_REDIS_REST_TOKEN` | Render + GitHub Secret | Redis auth |
 | `MAX_STORIES_FETCHED` | Render | RSS fetch cap (80) |

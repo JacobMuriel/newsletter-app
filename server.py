@@ -171,7 +171,11 @@ async def summary(body: SummaryRequest):
 
 
 def _load_sections_with_nba() -> dict | None:
-    """Load sections from Redis and inject nba_stats as a top-level key."""
+    """Load sections from Redis and inject nba_stats as a top-level key.
+
+    ai_social_buzz is already embedded in the briefing:sections payload by the pipeline,
+    so no extra Redis read is needed for it here.
+    """
     cached = load_sections_cache()
     if not cached:
         return None
@@ -181,6 +185,12 @@ def _load_sections_with_nba() -> dict | None:
         logger.info("[server] nba_stats merged into sections response")
     else:
         logger.info("[server] nba_stats not available — briefing:nba_stats key missing or empty")
+
+    if cached.get("ai_social_buzz") is not None:
+        logger.info("[server] ai_social_buzz present in sections payload")
+    else:
+        logger.info("[server] ai_social_buzz not in payload (disabled or unavailable)")
+
     return cached
 
 
