@@ -205,7 +205,7 @@ def _is_big_performance(player: dict[str, Any]) -> bool:
     reb = player.get("rebounds", 0)
     if pts >= 35:
         return True
-    if ast >= 12:
+    if ast >= 13:
         return True
     if blk >= 5 or stl >= 5:
         return True
@@ -380,7 +380,7 @@ def get_nba_game_stats() -> dict | None:
             note = ("Triple-double" if triple_double else
                     "30+ points"    if pts >= 30   else
                     "20+ rebounds"  if reb >= 20   else
-                    "15+ assists")
+                    "13+ assists")
             notable.append({
                 "player": p["player_name"], "team": p.get("team_abbr", ""),
                 "pts": pts, "reb": reb, "ast": ast, "note": note,
