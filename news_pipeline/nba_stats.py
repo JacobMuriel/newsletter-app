@@ -77,10 +77,11 @@ def get_yesterday_games() -> list[dict[str, Any]]:
             if not home or not away:
                 continue
 
-            # Only include completed games
-            status = event.get("status", {}).get("type", {}).get("completed", False)
-            if not status:
-                logger.info("Skipping in-progress/scheduled game %s", event.get("id"))
+            # Only include games with actual scores (skips future/postponed games)
+            home_score = int(home.get("score") or 0)
+            away_score = int(away.get("score") or 0)
+            if home_score + away_score == 0:
+                logger.info("Skipping scoreless game %s (not yet played)", event.get("id"))
                 continue
 
             games.append({
@@ -89,8 +90,8 @@ def get_yesterday_games() -> list[dict[str, Any]]:
                 "away_team": away["team"].get("displayName", ""),
                 "home_abbr": home["team"].get("abbreviation", ""),
                 "away_abbr": away["team"].get("abbreviation", ""),
-                "home_score": int(home.get("score") or 0),
-                "away_score": int(away.get("score") or 0),
+                "home_score": home_score,
+                "away_score": away_score,
             })
 
         logger.info("Found %d completed games for %s", len(games), date_str)
