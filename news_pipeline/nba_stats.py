@@ -54,11 +54,16 @@ def is_rockets_or_bulls(team_abbr: str) -> bool:
 # ESPN data-fetching
 # ---------------------------------------------------------------------------
 
-def get_yesterday_games() -> list[dict[str, Any]]:
-    """Fetch all NBA games played yesterday via ESPN scoreboard API."""
+def get_yesterday_games(target_date=None) -> list[dict[str, Any]]:
+    """Fetch all NBA games for a given date via ESPN scoreboard API.
+
+    If target_date is None, defaults to yesterday (UTC).
+    """
+    from datetime import date as date_type
+    if target_date is None:
+        target_date = datetime.now().date() - timedelta(days=1)
     try:
-        yesterday = datetime.now().date() - timedelta(days=1)
-        date_str = yesterday.strftime("%Y%m%d")
+        date_str = target_date.strftime("%Y%m%d")
         logger.info("Fetching ESPN NBA scoreboard for %s", date_str)
 
         resp = httpx.get(_ESPN_SCOREBOARD, params={"dates": date_str}, timeout=20)
@@ -216,11 +221,12 @@ def _is_big_performance(player: dict[str, Any]) -> bool:
 def get_yesterday_nba_summary() -> dict[str, Any]:
     """Fetch yesterday's NBA results, box scores, and big performances.
 
-    Returns a dict with keys: rockets_bulls_games, all_games, big_performances.
+    Returns a dict with keys: rockets_bulls_games, all_games, big_performances, game_date.
     Returns empty dict on failure.
     """
     try:
-        games = get_yesterday_games()
+        yesterday = datetime.now().date() - timedelta(days=1)
+        games = get_yesterday_games(yesterday)
         if not games:
             logger.info("No completed NBA games found for yesterday")
             return {}
@@ -245,6 +251,28 @@ def get_yesterday_nba_summary() -> dict[str, Any]:
                 if _is_big_performance(player):
                     big_performances.append(player)
 
+        # If a featured team didn't play yesterday, look back one more day for their game
+        featured_abbrs = {"HOU", "CHI"}
+        found_abbrs = {g["home_abbr"] for g in rockets_bulls_games} | {g["away_abbr"] for g in rockets_bulls_games}
+        missing = featured_abbrs - found_abbrs
+        if missing:
+            two_days_ago = yesterday - timedelta(days=1)
+            logger.info("Featured teams %s not in yesterday's games — checking %s", missing, two_days_ago)
+            older_games = get_yesterday_games(two_days_ago)
+            for i, game in enumerate(older_games):
+                if not (is_rockets_or_bulls(game["home_abbr"]) or is_rockets_or_bulls(game["away_abbr"])):
+                    continue
+                abbrs_in_game = {game["home_abbr"], game["away_abbr"]}
+                if not (abbrs_in_game & missing):
+                    continue
+                time.sleep(0.3)
+                box_score = get_box_score(game["game_id"])
+                top = get_top_performer(box_score)
+                game_entry = {**game, "box_score": box_score, "top_performer": top}
+                rockets_bulls_games.append(game_entry)
+                missing -= abbrs_in_game
+                logger.info("Added %s fallback game from %s", abbrs_in_game & featured_abbrs, two_days_ago)
+
         logger.info(
             "NBA summary: %d games, %d Rockets/Bulls, %d big performances",
             len(all_games), len(rockets_bulls_games), len(big_performances),
@@ -253,6 +281,7 @@ def get_yesterday_nba_summary() -> dict[str, Any]:
             "rockets_bulls_games": rockets_bulls_games,
             "all_games": all_games,
             "big_performances": big_performances,
+            "game_date": yesterday,
         }
 
     except Exception as exc:
@@ -269,15 +298,14 @@ def get_nba_game_stats() -> dict | None:
     Wrapper around get_yesterday_nba_summary() that returns the Redis-compatible shape.
     Called by cron_pipeline.py and saved to briefing:nba_stats.
     """
-    from datetime import date, timedelta
-    yesterday = date.today() - timedelta(days=1)
-    data_date = f"{yesterday.strftime('%B')} {yesterday.day}, {yesterday.year}"
-
     try:
         summary = get_yesterday_nba_summary()
         if not summary:
             logger.error("[nba_stats] get_yesterday_nba_summary() returned empty — no games or fetch failed")
             return None
+
+        game_date = summary.get("game_date") or (datetime.now().date() - timedelta(days=1))
+        data_date = f"{game_date.strftime('%B')} {game_date.day}, {game_date.year}"
 
         # all_games
         all_games = []
