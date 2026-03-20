@@ -45,12 +45,31 @@ Use your x_search tool to find posts about:
 
 Then return ONLY a raw JSON object in exactly this format — no markdown, no prose, no explanation.
 
+STRICT DATA RULES — these are non-negotiable:
+
+1. Every claim you make must come from a live X post you found via search on {yesterday_str} or {today_str}.
+   Do not use your training knowledge to fill in any gaps. If you did not find a live post about it, do not include it.
+
+2. Do not state which team a player is on unless a live post you found explicitly places them there.
+   Player rosters change via trades. Your training data on rosters may be months out of date.
+   If you are not certain from live posts which team a player currently plays for, omit that player entirely.
+
+3. Do not state standings positions, win-loss records, or conference rankings from your training data.
+   Only include standings information if you found live posts explicitly discussing it.
+   If no live posts mentioned standings, omit standings from your response entirely — do not guess.
+
+4. If you searched for a topic and found little or no live post activity about it, do not invent a topic to fill the slot.
+   Return fewer topics with accurate information rather than more topics with invented or stale information.
+   Five accurate topics is better than six topics where one is fabricated.
+
+5. When in doubt about whether a claim is from a live post or your training data, omit it.
+
 Rules:
 - Use specific player names, teams, and scores from what you find on X. Never use vague language like "a star player."
-- If a team played on {yesterday_str}, you MUST populate their buzz object with the score, opponent, result, sentiment, and 5-6 distinct topics covering different angles of the game. Do NOT set to null if they played.
+- If a team played on {yesterday_str}, you MUST populate their buzz object with the score, opponent, result, sentiment, and 3-6 distinct topics covering different angles of the game. Only include a topic if you found genuine live post activity about it. Do NOT set to null if they played.
 - Only set rockets_buzz or bulls_buzz to null if that team had no game scheduled on {yesterday_str}.
 - Each topic covers a specific angle: the overall result reaction, a key player's performance, a controversial moment or call, playoff/standings implications, coaching decisions, etc.
-- league_buzz must contain 4-5 items about other teams — there is always NBA news worth reporting. Good angles: standout performances, MVP/award races, injury news, trade rumors, anything generating significant X volume.
+- league_buzz must contain 3-5 items about other teams — only include items where you found genuine live post activity. Good angles: standout performances, MVP/award races, injury news, trade rumors, anything generating significant X volume.
 - Do not include trade deadline content (deadline has passed for 2025-26).
 - Each summary must be 2-3 sentences synthesizing what X is saying about that specific angle.
 
