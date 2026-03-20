@@ -47,10 +47,12 @@ Then return ONLY a raw JSON object in exactly this format — no markdown, no pr
 
 Rules:
 - Use specific player names, teams, and scores from what you find on X. Never use vague language like "a star player."
-- If a team played on {yesterday_str}, you MUST populate their buzz object with the score, opponent, result, sentiment, and 2-3 paraphrased fan/analyst reactions. Do NOT set to null if they played.
+- If a team played on {yesterday_str}, you MUST populate their buzz object with the score, opponent, result, sentiment, and 5-6 distinct topics covering different angles of the game. Do NOT set to null if they played.
 - Only set rockets_buzz or bulls_buzz to null if that team had no game scheduled on {yesterday_str}.
-- league_buzz must contain 2-3 items about other teams — there is always NBA news worth reporting.
+- Each topic covers a specific angle: the overall result reaction, a key player's performance, a controversial moment or call, playoff/standings implications, coaching decisions, etc.
+- league_buzz must contain 4-5 items about other teams — there is always NBA news worth reporting. Good angles: standout performances, MVP/award races, injury news, trade rumors, anything generating significant X volume.
 - Do not include trade deadline content (deadline has passed for 2025-26).
+- Each summary must be 2-3 sentences synthesizing what X is saying about that specific angle.
 
 JSON format:
 {{
@@ -60,70 +62,30 @@ JSON format:
     "score": "112-108",
     "result": "win",
     "sentiment": "positive",
-    "reactions": [
-      "Paraphrased fan or analyst reaction 1",
-      "Paraphrased fan or analyst reaction 2",
-      "Paraphrased hot take or notable comment"
+    "topics": [
+      {{
+        "topic": "Sengun dominates the paint",
+        "summary": "X is calling this Sengun's best two-way game of the season. Several accounts noted he held AD to 4-for-12 in the post while dropping 24/11/4. The consensus is this was a statement game for his MVP-adjacent case."
+      }},
+      {{
+        "topic": "Jalen Green's clutch factor",
+        "summary": "Fans are split on whether Green's fourth-quarter performance finally proves he can be trusted in close games. A minority of accounts pushed back, arguing the Lakers simply ran out of gas."
+      }},
+      {{
+        "topic": "Playoff seeding implications",
+        "summary": "With the win, Houston moves to 5th in the West and cuts the gap to 4th to just one game. X is buzzing about a potential top-4 finish and home court advantage in the first round."
+      }}
     ]
   }},
-  "bulls_buzz": {{
-    "played": true,
-    "opponent": "Team Name",
-    "score": "98-104",
-    "result": "loss",
-    "sentiment": "negative",
-    "reactions": [
-      "Paraphrased reaction 1",
-      "Paraphrased reaction 2",
-      "Paraphrased reaction 3"
-    ]
-  }},
+  "bulls_buzz": null,
   "league_buzz": [
     {{
-      "topic": "Short topic label",
-      "summary": "2-3 sentence summary of what fans and analysts are saying on X"
+      "topic": "SGA's MVP case after 40-point night",
+      "summary": "After torching Orlando for 40, X is back to full SGA vs Jokic debate mode. Most analysts are leaning SGA given OKC's record. A few contrarian takes still argue Jokic's efficiency wins the argument."
     }},
-    {{
-      "topic": "Short topic label",
-      "summary": "2-3 sentence summary"
-    }}
-  ],
-  "data_date": "{yesterday_str}"
-}}
-
-{{
-  "rockets_buzz": {{
-    "played": true,
-    "opponent": "Team Name",
-    "score": "112-108",
-    "result": "win",
-    "sentiment": "positive",
-    "reactions": [
-      "Paraphrased fan or analyst reaction 1",
-      "Paraphrased fan or analyst reaction 2",
-      "Paraphrased hot take or notable comment"
-    ]
-  }},
-  "bulls_buzz": {{
-    "played": true,
-    "opponent": "Team Name",
-    "score": "98-104",
-    "result": "loss",
-    "sentiment": "negative",
-    "reactions": [
-      "Paraphrased reaction 1",
-      "Paraphrased reaction 2",
-      "Paraphrased reaction 3"
-    ]
-  }},
-  "league_buzz": [
     {{
       "topic": "Short topic label",
       "summary": "2-3 sentence summary of what people are saying on X about this storyline"
-    }},
-    {{
-      "topic": "Short topic label",
-      "summary": "2-3 sentence summary"
     }}
   ],
   "data_date": "{yesterday_str}"

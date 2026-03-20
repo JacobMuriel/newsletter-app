@@ -18,6 +18,12 @@ BALLDONTLIE_BASE = "https://www.balldontlie.io/api/v1"
 ROCKETS_TEAM_ID = 14
 BULLS_TEAM_ID = 4
 
+# Conference membership — BallDontLie standings don't always include conference
+_WEST_ABBRS = {"DAL", "DEN", "GSW", "HOU", "LAC", "LAL", "MEM", "MIN", "NOP",
+               "OKC", "PHX", "POR", "SAC", "SAS", "UTA"}
+_EAST_ABBRS = {"ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DET", "IND", "MIA",
+               "MIL", "NYK", "ORL", "PHI", "TOR", "WAS"}
+
 
 def get_nba_game_stats() -> dict | None:
     """
@@ -121,14 +127,11 @@ def _fetch_all(client: httpx.Client, date_str: str, data_date: str) -> dict | No
                 "opponent": opp_abbr,
                 "score": f"{my_score}-{opp_score}",
                 "result": "win" if my_score > opp_score else "loss",
-                "record": None,
-                "conference_rank": None,
                 "top_players": _team_top_players(g_stats, ROCKETS_TEAM_ID),
             }
             logger.info(
-                "[nba_stats] Rockets game found — %s vs %s, %d-%d (%s)",
-                "HOU", opp_abbr, my_score, opp_score,
-                rockets_game["result"],
+                "[nba_stats] Rockets game found — HOU vs %s, %d-%d (%s)",
+                opp_abbr, my_score, opp_score, rockets_game["result"],
             )
 
         # Bulls
@@ -142,8 +145,6 @@ def _fetch_all(client: httpx.Client, date_str: str, data_date: str) -> dict | No
                 "opponent": opp_abbr,
                 "score": f"{my_score}-{opp_score}",
                 "result": "win" if my_score > opp_score else "loss",
-                "record": None,
-                "conference_rank": None,
                 "top_players": _team_top_players(g_stats, BULLS_TEAM_ID),
             }
             logger.info(
@@ -156,13 +157,20 @@ def _fetch_all(client: httpx.Client, date_str: str, data_date: str) -> dict | No
     logger.info("[nba_stats] %d notable performances found", len(notable))
 
     # 5. Standings (best-effort; free tier may not support this endpoint)
-    _try_standings(client, rockets_game, bulls_game)
+    standings = _try_standings(client)
+
+    logger.info(
+        "[nba_stats] Done — %d games, %d notable, standings=%s. Rockets played: %s, Bulls played: %s",
+        len(all_games), len(notable), "yes" if standings else "no",
+        rockets_game.get("played"), bulls_game.get("played"),
+    )
 
     return {
         "all_games": all_games,
         "notable_performances": notable,
         "rockets_game": rockets_game,
         "bulls_game": bulls_game,
+        "standings": standings,
         "data_date": data_date,
     }
 
@@ -256,11 +264,11 @@ def _notable_performances(all_stats: list) -> list[dict]:
     return list(seen.values())[:10]
 
 
-def _try_standings(client: httpx.Client, rockets_game: dict, bulls_game: dict) -> None:
+def _try_standings(client: httpx.Client) -> list[dict] | None:
     """
-    Attempt to fetch standings and inject record/conference_rank into team dicts.
-    Modifies rockets_game and bulls_game in-place.
-    Logs a warning (not error) if the endpoint is unavailable on the free tier.
+    Attempt to fetch full league standings from BallDontLie.
+    Returns a list of {team, conference, rank, wins, losses} dicts, or None if unavailable.
+    Logs a warning (not error) if the endpoint is unsupported on the free tier.
     """
     try:
         resp = client.get(f"{BALLDONTLIE_BASE}/standings", params={"season": 2024})
@@ -269,24 +277,33 @@ def _try_standings(client: httpx.Client, rockets_game: dict, bulls_game: dict) -
                 "[nba_stats] GET /standings returned %d — standings unavailable on this tier, skipping",
                 resp.status_code,
             )
-            return
+            return None
 
+        rows: list[dict] = []
         for entry in resp.json().get("data", []):
-            team_id = entry.get("team", {}).get("id")
+            team = entry.get("team", {})
+            abbr = team.get("abbreviation", "")
             wins = entry.get("wins", 0)
             losses = entry.get("losses", 0)
-            rank = entry.get("conference_rank") or entry.get("rank")
-            record = f"{wins}-{losses}"
+            rank = entry.get("conference_rank") or entry.get("rank") or 0
+            # Determine conference from hardcoded mapping (API field not always present)
+            conference = "West" if abbr in _WEST_ABBRS else "East"
+            rows.append({
+                "team": abbr,
+                "conference": conference,
+                "rank": rank,
+                "wins": wins,
+                "losses": losses,
+            })
 
-            if team_id == ROCKETS_TEAM_ID:
-                rockets_game["record"] = record
-                rockets_game["conference_rank"] = rank
-                logger.info("[nba_stats] Rockets standings: %s rank %s", record, rank)
-            elif team_id == BULLS_TEAM_ID:
-                bulls_game["record"] = record
-                bulls_game["conference_rank"] = rank
-                logger.info("[nba_stats] Bulls standings: %s rank %s", record, rank)
+        if not rows:
+            logger.warning("[nba_stats] Standings endpoint returned empty data array")
+            return None
 
-        logger.info("[nba_stats] Standings fetch complete")
+        # Sort within each conference by rank
+        rows.sort(key=lambda r: (r["conference"], r["rank"]))
+        logger.info("[nba_stats] Standings loaded — %d teams", len(rows))
+        return rows
     except Exception as exc:
         logger.warning("[nba_stats] Standings fetch failed — %s: %s", type(exc).__name__, exc)
+        return None
