@@ -376,11 +376,17 @@ def get_nba_game_stats() -> dict | None:
         notable = []
         for p in summary.get("big_performances", [])[:10]:
             pts, reb, ast = p.get("points", 0), p.get("rebounds", 0), p.get("assists", 0)
+            blk = p.get("blocks", 0)
+            stl = p.get("steals", 0)
             triple_double = pts >= 10 and reb >= 10 and ast >= 10
             note = ("Triple-double" if triple_double else
+                    "35+ points"    if pts >= 35   else
                     "30+ points"    if pts >= 30   else
                     "20+ rebounds"  if reb >= 20   else
-                    "13+ assists")
+                    "13+ assists"   if ast >= 13   else
+                    "5+ blocks"     if blk >= 5    else
+                    "5+ steals"     if stl >= 5    else
+                    "Big game")
             notable.append({
                 "player": p["player_name"], "team": p.get("team_abbr", ""),
                 "pts": pts, "reb": reb, "ast": ast, "note": note,

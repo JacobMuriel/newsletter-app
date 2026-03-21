@@ -47,6 +47,7 @@ Then return ONLY a raw JSON object in exactly this format — no markdown, no pr
 
 Rules:
 - Use specific player names, teams, and scores from what you find on X. Never use vague language like "a star player."
+- The "score" field MUST be the verified official final score. Search for posts from @NBAcom, @ESPN, or the official team accounts (@HoustonRockets, @ChicagoBulls) to confirm the exact final score. Do NOT use fan posts or in-game score updates — only the confirmed final.
 - If a team played on {yesterday_str}, you MUST populate their buzz object with the score, opponent, result, sentiment, and 5-6 distinct topics covering different angles of the game. Do NOT set to null if they played.
 - Only set rockets_buzz or bulls_buzz to null if that team had no game scheduled on {yesterday_str}.
 - Each topic covers a specific angle: the overall result reaction, a key player's performance, a controversial moment or call, playoff/standings implications, coaching decisions, etc.
