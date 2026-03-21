@@ -120,12 +120,52 @@ python -c "import <module_name>; print('OK')"
 
 If the module has a `if __name__ == '__main__'` block or a `--test` flag, use that instead. Fix any `ImportError`, `AttributeError`, or runtime exception before proceeding.
 
+### Step 4 — Inspect Dry-Run Output for Data Quality
+
+Run the dry run again (same env vars as Step 2) and capture full output for inspection:
+
+```bash
+OPENAI_ENABLED=false GROK_ENABLED=false AI_SOCIAL_ENABLED=false \
+  UPSTASH_REDIS_REST_URL=disabled UPSTASH_REDIS_REST_TOKEN=disabled \
+  python cron_pipeline.py 2>&1
+```
+
+Read the full output and check every item below. Flag any that look wrong — do not treat this as pass/fail, treat it as a sanity check that requires human judgment:
+
+**Article fetch:**
+- Did it fetch at least 40 raw articles? (normal: 60–80; below 40 suggests feeds are failing)
+- Did it log any feed-level errors or timeouts? (a few are acceptable; >5 is a problem)
+
+**Clustering:**
+- Did it form at least 10 clusters? (normal: 20–35; below 10 means similarity threshold is too strict or source overlap is too low)
+- Did any section end up with 0 stories after clustering? That section will be empty in the app.
+
+**Per-section story counts (from `pipeline_api: pipeline complete` log line):**
+
+| Section | Minimum acceptable | Expected |
+|---|---|---|
+| `top` | 3 | 5 |
+| `markets` | 1 | 2 |
+| `ai` | 1 | 3 |
+| `finance_market_structure` | 1 | 3 |
+| `nba` | 1 | 3 |
+
+If any section is below the minimum, investigate before deploying — the app will show a visibly thin or empty section.
+
+**Story quality (scan the story titles in the log output):**
+- Are headlines concrete and specific, or vague/listicle-y? (e.g. "5 things to know about..." is a quality filter miss)
+- Are the top stories actually top stories, or filler?
+- Are NBA stories actually NBA stories, or did sports bleed into `top`?
+
+If anything looks off, investigate the relevant module (`cluster.py`, `quality.py`, `categorize.py`) before proceeding.
+
 ### Checklist Summary
 
 - [ ] Step 1: All modules compile without syntax errors
 - [ ] Step 2: Dry run completes without unhandled exceptions
 - [ ] Step 3: Every touched module imports/runs cleanly in isolation
-- [ ] All 3 steps passed → safe to proceed to Deploy Sequence
+- [ ] Step 4: Output inspected — article counts, cluster counts, per-section story counts, and story quality all look reasonable
+- [ ] All 4 steps passed → safe to proceed to Deploy Sequence
 
 ---
 
@@ -137,7 +177,7 @@ Every time code changes are made, execute these steps in order. Do not skip or r
 
 Run the Pre-Deploy Checklist above. Self-correct up to 3 attempts per failing step. If any step still fails after 3 attempts, **stop and report to the user — do not push or deploy**.
 
-All 3 checklist steps must pass before moving to Phase 2.
+All 4 checklist steps must pass before moving to Phase 2.
 
 ### Phase 2 — Push to GitHub
 
@@ -175,9 +215,17 @@ mcp__render__update_environment_variables(
 
 Poll via `mcp__render__get_deploy` until `status == "live"`. Do not proceed until live.
 
-### Phase 5 — Notify via Telegram
+### Phase 5 — Notify via Telegram + Launch Xcode Deploy
 
 Send a message to Jacob through the Telegram MCP tool (`mcp__plugin_telegram_telegram__reply`, chat_id `8657007613`) summarizing what was deployed. Always do this — it is the signal that everything is done.
+
+**Then launch the Xcode deploy script in the background** (Session 13):
+
+```bash
+nohup python3 /Users/jacobmuriel/Desktop/news-app/scripts/xcode_deploy.py > /tmp/xcode_deploy.log 2>&1 &
+```
+
+The script sends its own Telegram prompt asking Jacob to reply "ready" when his phone is on and plugged in, then automatically runs `xcodebuild` and installs to device. Do not wait for it — it runs independently.
 
 **Never flip Phases 3 and 4** — if you redeploy before the pipeline finishes, the server boots with stale Redis.
 
