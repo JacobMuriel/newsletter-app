@@ -10,6 +10,7 @@ import logging
 import time
 from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -203,13 +204,23 @@ def _is_big_performance(player: dict[str, Any]) -> bool:
     blk = player.get("blocks", 0)
     stl = player.get("steals", 0)
     reb = player.get("rebounds", 0)
+    minutes = player.get("minutes", 0)
+    if minutes < 15:
+        return False
     if pts >= 35:
         return True
-    if ast >= 13:
+    if reb >= 15:
+        return True
+    if ast >= 12:
         return True
     if blk >= 5 or stl >= 5:
         return True
-    if sum(1 for v in [pts, reb, ast] if v >= 10) >= 3:
+    # Triple-double
+    if pts >= 10 and reb >= 10 and ast >= 10:
+        return True
+    # 20/8/7 rule: sort [pts, reb, ast] descending; qualifies if [0]>=20, [1]>=8, [2]>=7
+    sorted_stats = sorted([pts, reb, ast], reverse=True)
+    if sorted_stats[0] >= 20 and sorted_stats[1] >= 8 and sorted_stats[2] >= 7:
         return True
     return False
 
@@ -382,8 +393,8 @@ def get_nba_game_stats() -> dict | None:
             note = ("Triple-double" if triple_double else
                     "35+ points"    if pts >= 35   else
                     "30+ points"    if pts >= 30   else
-                    "20+ rebounds"  if reb >= 20   else
-                    "13+ assists"   if ast >= 13   else
+                    "15+ rebounds"  if reb >= 15   else
+                    "12+ assists"   if ast >= 12   else
                     "5+ blocks"     if blk >= 5    else
                     "5+ steals"     if stl >= 5    else
                     "Big game")
@@ -411,6 +422,103 @@ def get_nba_game_stats() -> dict | None:
     except Exception as exc:
         logger.error("[nba_stats] get_nba_game_stats FAILED — %s: %s", type(exc).__name__, exc)
         return None
+
+
+def get_today_games() -> list[dict]:
+    """Fetch today's NBA slate from ESPN scoreboard.
+
+    Returns games with status:
+    - 'upcoming': game hasn't started. Includes start_time_ct in Central time.
+    - 'live': game in progress. Includes quarter (e.g. "Q3") and clock (e.g. "4:32").
+    - 'final': game completed. Includes top_scorer from box score.
+    """
+    ct_tz = ZoneInfo("America/Chicago")
+    try:
+        logger.info("Fetching ESPN NBA scoreboard for today")
+        resp = httpx.get(_ESPN_SCOREBOARD, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+
+        games: list[dict] = []
+        for event in data.get("events", []):
+            comp = (event.get("competitions") or [{}])[0]
+            competitors = comp.get("competitors", [])
+            if len(competitors) < 2:
+                continue
+
+            home = next((c for c in competitors if c.get("homeAway") == "home"), None)
+            away = next((c for c in competitors if c.get("homeAway") == "away"), None)
+            if not home or not away:
+                continue
+
+            game_id = event["id"]
+            home_abbr = home["team"].get("abbreviation", "")
+            away_abbr = away["team"].get("abbreviation", "")
+            home_score = int(home.get("score") or 0)
+            away_score = int(away.get("score") or 0)
+
+            status_obj = comp.get("status", {})
+            status_type = status_obj.get("type", {}).get("name", "")
+
+            if status_type == "STATUS_FINAL":
+                status = "final"
+            elif status_type in ("STATUS_IN_PROGRESS", "STATUS_HALFTIME"):
+                status = "live"
+            else:
+                status = "upcoming"
+
+            quarter: str | None = None
+            clock: str | None = None
+            start_time_ct: str | None = None
+            top_scorer: dict | None = None
+
+            if status == "upcoming":
+                raw_date = event.get("date", "")
+                try:
+                    dt_utc = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+                    dt_ct = dt_utc.astimezone(ct_tz)
+                    start_time_ct = dt_ct.strftime("%-I:%M %p CT")
+                except Exception:
+                    start_time_ct = None
+
+            elif status == "live":
+                period = status_obj.get("period", 0)
+                display_clock = status_obj.get("displayClock", "")
+                quarter = "Half" if status_type == "STATUS_HALFTIME" else (f"Q{period}" if period else None)
+                clock = display_clock or None
+                box_score = get_box_score(game_id)
+                top = get_top_performer(box_score)
+                if top:
+                    top_scorer = {"name": top["player_name"], "pts": top["points"],
+                                  "reb": top["rebounds"], "ast": top["assists"]}
+
+            elif status == "final":
+                quarter = "Final"
+                box_score = get_box_score(game_id)
+                top = get_top_performer(box_score)
+                if top:
+                    top_scorer = {"name": top["player_name"], "pts": top["points"],
+                                  "reb": top["rebounds"], "ast": top["assists"]}
+
+            games.append({
+                "game_id": game_id,
+                "home_team": home_abbr,
+                "away_team": away_abbr,
+                "home_score": home_score if status != "upcoming" else None,
+                "away_score": away_score if status != "upcoming" else None,
+                "status": status,
+                "quarter": quarter,
+                "clock": clock,
+                "start_time_ct": start_time_ct,
+                "top_scorer": top_scorer,
+            })
+
+        logger.info("get_today_games: %d games found", len(games))
+        return games
+
+    except Exception as exc:
+        logger.warning("get_today_games failed — %s: %s", type(exc).__name__, exc)
+        return []
 
 
 def _get_standings() -> list[dict] | None:

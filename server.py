@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date
+from datetime import date, datetime, timezone
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -168,6 +168,65 @@ async def summary(body: SummaryRequest):
     save_summary_to_cache(story_id, result, _summary_mem_cache)
     logger.info("POST /summary — done (story_id=%s)", story_id)
     return result
+
+
+@app.get("/nba/today")
+async def nba_today():
+    """Live today's NBA slate — always fetches fresh from ESPN, no cache."""
+    from news_pipeline.nba_stats import get_today_games
+    games = get_today_games()
+    return {"games": games, "fetched_at": datetime.now(timezone.utc).isoformat()}
+
+
+@app.post("/nba/social/live")
+async def nba_social_live():
+    """
+    Fetches live Grok social buzz for an in-progress Rockets or Bulls game.
+    Only called when at least one of those teams has status == 'live' in today's slate.
+    Returns same shape as nba_social_buzz in the /sections response.
+    """
+    from news_pipeline.nba_stats import get_today_games
+    from news_pipeline.nba_social import get_nba_social_buzz
+    try:
+        today_games = get_today_games()
+        rockets_game_dict: dict | None = None
+        bulls_game_dict: dict | None = None
+
+        for g in today_games:
+            if g["status"] == "live":
+                home, away = g["home_team"], g["away_team"]
+                if home == "HOU" or away == "HOU":
+                    is_home = home == "HOU"
+                    my_score  = (g["home_score"] or 0) if is_home else (g["away_score"] or 0)
+                    opp_score = (g["away_score"] or 0) if is_home else (g["home_score"] or 0)
+                    rockets_game_dict = {
+                        "played": True,
+                        "opponent": away if is_home else home,
+                        "score": f"{my_score}-{opp_score}",
+                        "result": "unknown",
+                    }
+                if home == "CHI" or away == "CHI":
+                    is_home = home == "CHI"
+                    my_score  = (g["home_score"] or 0) if is_home else (g["away_score"] or 0)
+                    opp_score = (g["away_score"] or 0) if is_home else (g["home_score"] or 0)
+                    bulls_game_dict = {
+                        "played": True,
+                        "opponent": away if is_home else home,
+                        "score": f"{my_score}-{opp_score}",
+                        "result": "unknown",
+                    }
+
+        if rockets_game_dict is None and bulls_game_dict is None:
+            return {"buzz": None, "reason": "no_live_featured_game"}
+
+        buzz = get_nba_social_buzz(
+            rockets_game=rockets_game_dict or {"played": False},
+            bulls_game=bulls_game_dict or {"played": False},
+        )
+        return {"buzz": buzz}
+    except Exception as exc:
+        logger.exception("POST /nba/social/live failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 def _load_sections_with_nba() -> dict | None:
