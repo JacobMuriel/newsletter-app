@@ -21,7 +21,6 @@ import yaml
 from dotenv import load_dotenv
 
 from news_pipeline.bias_detect import detect_charged_language
-from news_pipeline.nba_social import get_nba_social_buzz
 from news_pipeline.ai_social import fetch_ai_buzz
 from news_pipeline.categorize import categorize_stories
 from news_pipeline.cluster import cluster_articles
@@ -118,15 +117,8 @@ def get_ranked_stories() -> dict:
     )
     logger.info("[perf] Total pipeline: %.1fs", time.time() - t0)
 
-    nba_buzz = None
-    if os.environ.get("GROK_ENABLED", "false").lower() == "true":
-        logger.info("[pipeline] Fetching NBA social buzz from Grok...")
-        nba_buzz = get_nba_social_buzz()
-        if nba_buzz is None:
-            logger.warning("[pipeline] NBA social buzz unavailable — Grok call returned None")
-    else:
-        logger.info("[pipeline] GROK_ENABLED is false — skipping NBA social buzz")
-
+    # nba_social_buzz is injected by cron_pipeline.py after nba_stats runs,
+    # so it has confirmed game data to anchor the Grok search.
     # AI_SOCIAL_ENABLED gates this; fetch_ai_buzz() handles its own env check
     logger.info("[pipeline] Fetching AI social buzz from Grok...")
     ai_buzz = fetch_ai_buzz()
@@ -136,7 +128,7 @@ def get_ranked_stories() -> dict:
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "sections": result_sections,
-        "nba_social_buzz": nba_buzz,
+        "nba_social_buzz": None,  # filled in by cron_pipeline after nba_stats
         "ai_social_buzz": ai_buzz,
     }
 

@@ -11,7 +11,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-def get_nba_social_buzz() -> dict | None:
+def get_nba_social_buzz(rockets_game: dict | None = None, bulls_game: dict | None = None) -> dict | None:
     """
     Calls the Grok API to synthesize X/Twitter discourse about last night's NBA games.
 
@@ -35,8 +35,32 @@ def get_nba_social_buzz() -> dict | None:
     today_str = today.strftime("%B %-d, %Y")
     yesterday_str = yesterday.strftime("%B %-d, %Y")
 
+    # Build confirmed game context from ESPN stats (authoritative — never override these)
+    def _game_line(game: dict | None, team: str) -> str:
+        if not game or not game.get("played"):
+            return f"- {team}: did NOT play on {yesterday_str}."
+        opp = game.get("opponent", "unknown opponent")
+        score = game.get("score", "?-?")
+        result = game.get("result", "unknown")
+        return (f"- {team}: PLAYED on {yesterday_str}. "
+                f"{'Won' if result == 'win' else 'Lost'} to {opp}, final score {score}. "
+                f"This is a confirmed ESPN fact — do NOT change the score or result.")
+
+    confirmed_block = ""
+    if rockets_game or bulls_game:
+        confirmed_block = f"""
+CONFIRMED GAME DATA (from official ESPN box score — treat as ground truth):
+{_game_line(rockets_game, 'Houston Rockets')}
+{_game_line(bulls_game, 'Chicago Bulls')}
+
+For any team marked as PLAYED above, you MUST populate their buzz object — do NOT return null.
+Search X specifically for fan reactions to that confirmed result.
+If X posts are sparse (game ended recently), still populate the section using the confirmed score and whatever reactions you can find.
+"""
+
     prompt = f"""
 Today is {today_str}. Search X (Twitter) for NBA posts from {yesterday_str} and {today_str}.
+{confirmed_block}
 
 Use your x_search tool to find posts about:
 - The Houston Rockets game on {yesterday_str}
