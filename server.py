@@ -173,9 +173,9 @@ async def summary(body: SummaryRequest):
 @app.get("/nba/today")
 async def nba_today():
     """Live today's NBA slate — always fetches fresh from ESPN, no cache."""
-    from news_pipeline.nba_stats import get_today_games
-    games = get_today_games()
-    return {"games": games, "fetched_at": datetime.now(timezone.utc).isoformat()}
+    from news_pipeline.nba_stats import get_today_nba_summary
+    summary = get_today_nba_summary()
+    return {**summary, "fetched_at": datetime.now(timezone.utc).isoformat()}
 
 
 @app.post("/nba/social/live")

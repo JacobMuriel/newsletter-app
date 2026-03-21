@@ -424,22 +424,38 @@ def get_nba_game_stats() -> dict | None:
         return None
 
 
-def get_today_games() -> list[dict]:
-    """Fetch today's NBA slate from ESPN scoreboard.
+def get_today_nba_summary() -> dict:
+    """Fetch today's NBA slate from ESPN and compute team summaries + notable performances
+    for any completed games. Single ESPN + box score pass.
 
-    Returns games with status:
-    - 'upcoming': game hasn't started. Includes start_time_ct in Central time.
-    - 'live': game in progress. Includes quarter (e.g. "Q3") and clock (e.g. "4:32").
-    - 'final': game completed. Includes top_scorer from box score.
+    Returns:
+      {
+        "games": [...],                  # one per game, with status/scores/top_scorer
+        "rockets_summary": {...},        # same shape as rockets_game in get_nba_game_stats(); played=False if no final game today
+        "bulls_summary": {...},          # same
+        "notable_performances": [...],   # big performances from today's completed games
+      }
     """
     ct_tz = ZoneInfo("America/Chicago")
+    today_str = datetime.now().strftime("%Y%m%d")
+    empty = {
+        "games": [],
+        "rockets_summary": {"played": False},
+        "bulls_summary": {"played": False},
+        "notable_performances": [],
+    }
     try:
-        logger.info("Fetching ESPN NBA scoreboard for today")
-        resp = httpx.get(_ESPN_SCOREBOARD, timeout=20)
+        logger.info("Fetching ESPN NBA scoreboard for %s", today_str)
+        resp = httpx.get(_ESPN_SCOREBOARD, params={"dates": today_str}, timeout=20)
         resp.raise_for_status()
         data = resp.json()
 
         games: list[dict] = []
+        rockets_summary: dict = {"played": False}
+        bulls_summary: dict = {"played": False}
+        notable: list[dict] = []
+        box_score_index = 0  # track delay between box score calls
+
         for event in data.get("events", []):
             comp = (event.get("competitions") or [{}])[0]
             competitors = comp.get("competitors", [])
@@ -481,24 +497,81 @@ def get_today_games() -> list[dict]:
                 except Exception:
                     start_time_ct = None
 
-            elif status == "live":
-                period = status_obj.get("period", 0)
-                display_clock = status_obj.get("displayClock", "")
-                quarter = "Half" if status_type == "STATUS_HALFTIME" else (f"Q{period}" if period else None)
-                clock = display_clock or None
+            elif status in ("live", "final"):
+                if status == "live":
+                    period = status_obj.get("period", 0)
+                    display_clock = status_obj.get("displayClock", "")
+                    quarter = "Half" if status_type == "STATUS_HALFTIME" else (f"Q{period}" if period else None)
+                    clock = display_clock or None
+                else:
+                    quarter = "Final"
+
+                # Fetch box score (one call covers top_scorer + team detail + big perfs)
+                if box_score_index > 0:
+                    time.sleep(0.3)
                 box_score = get_box_score(game_id)
+                box_score_index += 1
+
                 top = get_top_performer(box_score)
                 if top:
                     top_scorer = {"name": top["player_name"], "pts": top["points"],
                                   "reb": top["rebounds"], "ast": top["assists"]}
 
-            elif status == "final":
-                quarter = "Final"
-                box_score = get_box_score(game_id)
-                top = get_top_performer(box_score)
-                if top:
-                    top_scorer = {"name": top["player_name"], "pts": top["points"],
-                                  "reb": top["rebounds"], "ast": top["assists"]}
+                # For final games: build team summaries + notable performances
+                if status == "final":
+                    if (home_abbr == "HOU" or away_abbr == "HOU") and not rockets_summary.get("played"):
+                        is_home = home_abbr == "HOU"
+                        my_score  = home_score if is_home else away_score
+                        opp_score = away_score if is_home else home_score
+                        top_players = [
+                            {"name": p["player_name"], "pts": p["points"], "reb": p["rebounds"], "ast": p["assists"]}
+                            for p in sorted(
+                                [r for r in box_score if r.get("team_abbr") == "HOU"],
+                                key=lambda x: x.get("minutes", 0), reverse=True
+                            )[:5]
+                        ]
+                        rockets_summary = {
+                            "played": True, "opponent": away_abbr if is_home else home_abbr,
+                            "score": f"{my_score}-{opp_score}",
+                            "result": "win" if my_score > opp_score else "loss",
+                            "top_players": top_players,
+                        }
+
+                    if (home_abbr == "CHI" or away_abbr == "CHI") and not bulls_summary.get("played"):
+                        is_home = home_abbr == "CHI"
+                        my_score  = home_score if is_home else away_score
+                        opp_score = away_score if is_home else home_score
+                        top_players = [
+                            {"name": p["player_name"], "pts": p["points"], "reb": p["rebounds"], "ast": p["assists"]}
+                            for p in sorted(
+                                [r for r in box_score if r.get("team_abbr") == "CHI"],
+                                key=lambda x: x.get("minutes", 0), reverse=True
+                            )[:5]
+                        ]
+                        bulls_summary = {
+                            "played": True, "opponent": away_abbr if is_home else home_abbr,
+                            "score": f"{my_score}-{opp_score}",
+                            "result": "win" if my_score > opp_score else "loss",
+                            "top_players": top_players,
+                        }
+
+                    for player in box_score:
+                        if _is_big_performance(player):
+                            pts, reb, ast = player.get("points", 0), player.get("rebounds", 0), player.get("assists", 0)
+                            blk, stl = player.get("blocks", 0), player.get("steals", 0)
+                            triple_double = pts >= 10 and reb >= 10 and ast >= 10
+                            note = ("Triple-double" if triple_double else
+                                    "35+ points"    if pts >= 35   else
+                                    "30+ points"    if pts >= 30   else
+                                    "15+ rebounds"  if reb >= 15   else
+                                    "12+ assists"   if ast >= 12   else
+                                    "5+ blocks"     if blk >= 5    else
+                                    "5+ steals"     if stl >= 5    else
+                                    "Big game")
+                            notable.append({
+                                "player": player["player_name"], "team": player.get("team_abbr", ""),
+                                "pts": pts, "reb": reb, "ast": ast, "note": note,
+                            })
 
             games.append({
                 "game_id": game_id,
@@ -513,12 +586,24 @@ def get_today_games() -> list[dict]:
                 "top_scorer": top_scorer,
             })
 
-        logger.info("get_today_games: %d games found", len(games))
-        return games
+        logger.info("get_today_nba_summary: %d games, rockets=%s, bulls=%s, %d notable",
+                    len(games), rockets_summary.get("played"), bulls_summary.get("played"), len(notable))
+        return {
+            "games": games,
+            "rockets_summary": rockets_summary,
+            "bulls_summary": bulls_summary,
+            "notable_performances": notable[:10],
+        }
 
     except Exception as exc:
-        logger.warning("get_today_games failed — %s: %s", type(exc).__name__, exc)
-        return []
+        logger.warning("get_today_nba_summary failed — %s: %s", type(exc).__name__, exc)
+        return empty
+
+
+def get_today_games() -> list[dict]:
+    """Thin wrapper around get_today_nba_summary() — returns just the games list.
+    Used by /nba/social/live for status checks."""
+    return get_today_nba_summary()["games"]
 
 
 def _get_standings() -> list[dict] | None:
