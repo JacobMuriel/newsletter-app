@@ -1,6 +1,6 @@
 # CLAUDE.md — Persistent Brain
 
-Last updated: March 20, 2026
+Last updated: March 21, 2026 (workflow enforcement)
 
 This file is the single source of truth for any Claude session — chat or Claude Code.
 Read this before touching anything. It covers not just *what* the system does but *why* it's built this way, common failure modes, and how to debug them.
@@ -82,16 +82,104 @@ iOS App (Briefing, SwiftUI, iOS 16+)
 
 ---
 
-## Deploy Sequence (Order Matters)
+## Pre-Deploy Checklist (MANDATORY)
 
-Always do it in this order:
-1. Push code to `main`
-2. Force-trigger Render deploy via MCP (`mcp__render__update_environment_variables` with `DEPLOY_TIMESTAMP` bump) — auto-deploy on push is unreliable
-3. If pipeline data also needs refreshing: `gh workflow run daily_newsletter.yml`
-4. Wait for GitHub Actions to finish (`gh run list` to poll)
-5. Render will pick up fresh Redis data on next request after midnight — OR redeploy again if you need it immediately
+**Run this before every GitHub Actions trigger or Render deploy — no exceptions.**
 
-**Never flip steps 3 and 2** — if you redeploy before the pipeline finishes, the server boots with stale Redis.
+These steps must all pass before proceeding. Self-correct up to 3 attempts per step. If any step still fails after 3 attempts, stop and report to the user. Do not proceed to GitHub Actions or Render until all steps pass.
+
+### Step 1 — Syntax Check All Pipeline Modules
+
+```bash
+python -m py_compile cron_pipeline.py news_pipeline/fetch_news.py news_pipeline/cluster.py news_pipeline/categorize.py news_pipeline/quality.py news_pipeline/rank.py news_pipeline/nba_social.py news_pipeline/summarize.py news_pipeline/redis_cache.py news_pipeline/nba_stats.py
+```
+
+Run from the repo root. Any `SyntaxError` must be fixed before moving on.
+
+### Step 2 — Dry Run With All APIs Disabled
+
+Run the pipeline with all external API calls disabled:
+
+```bash
+OPENAI_ENABLED=false GROK_ENABLED=false AI_SOCIAL_ENABLED=false \
+  UPSTASH_REDIS_REST_URL=disabled UPSTASH_REDIS_REST_TOKEN=disabled \
+  python cron_pipeline.py --dry-run 2>&1 | tail -40
+```
+
+Expected: pipeline completes without crashing (Redis writes and API calls are no-ops). Any unhandled exception is a blocker.
+
+> **Note:** If `--dry-run` is not yet implemented, run with env vars above and verify no exceptions reach top-level. A `ConnectionError` or `AuthenticationError` on disabled services is expected and acceptable — an unhandled crash is not.
+
+### Step 3 — Isolated Module Test for Any File Touched This Session
+
+For each pipeline module edited this session, run its standalone self-test or import check:
+
+```bash
+python -c "import <module_name>; print('OK')"
+```
+
+If the module has a `if __name__ == '__main__'` block or a `--test` flag, use that instead. Fix any `ImportError`, `AttributeError`, or runtime exception before proceeding.
+
+### Checklist Summary
+
+- [ ] Step 1: All modules compile without syntax errors
+- [ ] Step 2: Dry run completes without unhandled exceptions
+- [ ] Step 3: Every touched module imports/runs cleanly in isolation
+- [ ] All 3 steps passed → safe to proceed to Deploy Sequence
+
+---
+
+## Full Session Workflow (MANDATORY — follow exactly)
+
+Every time code changes are made, execute these steps in order. Do not skip or reorder.
+
+### Phase 1 — Pre-Deploy Tests (before any push)
+
+Run the Pre-Deploy Checklist above. Self-correct up to 3 attempts per failing step. If any step still fails after 3 attempts, **stop and report to the user — do not push or deploy**.
+
+All 3 checklist steps must pass before moving to Phase 2.
+
+### Phase 2 — Push to GitHub
+
+```bash
+git add <specific files>
+git commit -m "..."
+git push origin main
+```
+
+### Phase 3 — Run GitHub Actions Pipeline
+
+Always run the pipeline after a push, unless the change is server-only (no pipeline logic touched):
+
+```bash
+gh workflow run daily_newsletter.yml
+```
+
+Poll until status is `completed`:
+```bash
+gh run list --workflow=daily_newsletter.yml --limit=1
+```
+
+Do not proceed to Phase 4 until the run shows `completed / success`. If it fails, check the logs and fix before redeploying.
+
+### Phase 4 — Deploy to Render
+
+Bump `DEPLOY_TIMESTAMP` via MCP to force a fresh deploy (auto-deploy on push is unreliable):
+
+```python
+mcp__render__update_environment_variables(
+    serviceId="srv-d6tbca0gjchc73cb5fd0",
+    envVars=[{"key": "DEPLOY_TIMESTAMP", "value": "<current UTC datetime>"}]
+)
+```
+
+Poll via `mcp__render__get_deploy` until `status == "live"`. Do not proceed until live.
+
+### Phase 5 — Notify via Telegram
+
+Send a message to Jacob through the Telegram MCP tool (`mcp__plugin_telegram_telegram__reply`, chat_id `8657007613`) summarizing what was deployed. Always do this — it is the signal that everything is done.
+
+**Never flip Phases 3 and 4** — if you redeploy before the pipeline finishes, the server boots with stale Redis.
 
 **Render service details:**
 - Name: `newsletter-app` (not `briefing-api` — the `render.yaml` name is wrong, ignore it)
