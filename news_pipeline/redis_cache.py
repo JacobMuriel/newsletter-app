@@ -8,6 +8,7 @@ from datetime import date
 logger = logging.getLogger(__name__)
 
 SECTIONS_KEY = "briefing:sections"
+PREV_SECTIONS_KEY = "briefing:sections:prev"
 SUMMARIES_KEY = "briefing:summaries"
 CACHE_DATE_KEY = "briefing:cache_date"
 NBA_STATS_KEY = "briefing:nba_stats"
@@ -38,7 +39,7 @@ def _get_client():
 
 # ── Sections ──────────────────────────────────────────────────────────────────
 
-def load_sections_cache() -> dict | None:
+def load_sections_cache(key: str = "briefing:sections") -> dict | None:
     """
     Returns cached sections dict if it exists and is from today.
     Returns None if missing, stale, or unreadable.
@@ -51,7 +52,7 @@ def load_sections_cache() -> dict | None:
             logger.info("[redis_cache] Sections cache is stale or missing")
             return None
 
-        raw = client.get(SECTIONS_KEY)
+        raw = client.get(key)
         if not raw:
             return None
 
@@ -77,6 +78,8 @@ def save_sections_cache(data: dict) -> None:
 
         client.set(SECTIONS_KEY, json.dumps(data), ex=CACHE_TTL_SECONDS)
         client.set(CACHE_DATE_KEY, today, ex=CACHE_TTL_SECONDS)
+        # Write a longer-lived fallback key every pipeline run
+        client.set(PREV_SECTIONS_KEY, json.dumps(data), ex=52 * 3600)
 
         logger.info(f"[redis_cache] Sections cache written for {today}")
 

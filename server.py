@@ -178,6 +178,11 @@ def _load_sections_with_nba() -> dict | None:
     """
     cached = load_sections_cache()
     if not cached:
+        cached = load_sections_cache(key="briefing:sections:prev")
+        if cached:
+            cached["stale"] = True
+            logger.warning("[server] serving stale fallback data from briefing:sections:prev")
+    if not cached:
         return None
     nba_stats = load_nba_stats_cache()
     if nba_stats is not None:
