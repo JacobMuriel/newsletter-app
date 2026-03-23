@@ -78,21 +78,32 @@ def get_baseline_offset() -> int:
 # ---------------------------------------------------------------------------
 
 def find_device_udid() -> str | None:
-    """Run devicectl to find the first paired iPhone."""
+    """Find the first real (non-simulator) iOS device via xctrace."""
+    import re
     try:
         result = subprocess.run(
-            ["xcrun", "devicectl", "list", "devices"],
+            ["xcrun", "xctrace", "list", "devices"],
             capture_output=True, text=True, timeout=15,
         )
+        in_devices = False
         for line in result.stdout.splitlines():
-            if "iPhone" in line and ("paired" in line or "available" in line):
-                parts = line.split()
-                for part in parts:
-                    # UDIDs are 36-char hex with dashes OR 40-char hex (legacy)
-                    if len(part) == 36 and part.count("-") == 4:
-                        return part
+            if line.strip() == "== Devices ==":
+                in_devices = True
+                continue
+            if line.strip().startswith("=="):
+                in_devices = False
+                continue
+            if not in_devices:
+                continue
+            # Skip the Mac itself
+            if "MacBook" in line or "Mac " in line:
+                continue
+            # Real device lines: "Name (OS) (UDID)" — UDID has exactly one dash
+            m = re.search(r'\(([0-9A-Fa-f]+-[0-9A-Fa-f]+)\)\s*$', line)
+            if m:
+                return m.group(1)
     except Exception as e:
-        print(f"[xcode_deploy] devicectl error: {e}", file=sys.stderr)
+        print(f"[xcode_deploy] xctrace error: {e}", file=sys.stderr)
     return None
 
 
