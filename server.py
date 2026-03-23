@@ -265,18 +265,17 @@ JSON format:
 {{
   "headline": "{body.headline}",
   "paragraphs": [
-    "What happened: 2-3 sentences summarizing the core news factually.",
-    "What people are saying: 2-3 sentences on the X reaction — who is excited, skeptical, or critical.",
-    "Why it matters: 2-3 sentences on the broader implications for AI or the industry.",
-    "Additional context (optional): any notable counterpoints, caveats, or related developments."
+    "What happened (1 sentence)",
+    "X reaction (1 sentence — who is excited or skeptical)",
+    "Why it matters (1 sentence)"
   ],
   "num_sources_used": 7
 }}
 
 Rules:
-- Write in your own words — do not quote tweets.
-- Be specific: include names, numbers, and companies where found on X.
-- If the topic is very new and X posts are sparse, still provide the best summary you can from what you find.
+- Each paragraph is ONE sentence only — tight and punchy.
+- No preamble labels like "What happened:" — just the sentence itself.
+- Be specific: include names, numbers, companies where found on X.
 - num_sources_used must reflect how many X posts you actually read.
 """
 
