@@ -125,11 +125,18 @@ def get_ranked_stories() -> dict:
     if ai_buzz is None:
         logger.info("[pipeline] AI social buzz unavailable or disabled")
 
+    logger.info("[pipeline] Fetching finance social buzz from Grok...")
+    from news_pipeline.finance_social import fetch_finance_buzz
+    finance_buzz = fetch_finance_buzz()
+    if finance_buzz is None:
+        logger.info("[pipeline] Finance social buzz unavailable or disabled")
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "sections": result_sections,
         "nba_social_buzz": None,  # filled in by cron_pipeline after nba_stats
         "ai_social_buzz": ai_buzz,
+        "finance_buzz": finance_buzz,
     }
 
 

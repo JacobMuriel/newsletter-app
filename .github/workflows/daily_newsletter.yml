@@ -29,6 +29,7 @@ jobs:
           GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
           GROK_ENABLED: "true"
           AI_SOCIAL_ENABLED: "true"
+          FINANCE_SOCIAL_ENABLED: "true"
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           NBA_STATS_ENABLED: "true"

@@ -320,6 +320,92 @@ Rules:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/finance/topic-detail")
+async def finance_topic_detail(body: TopicDetailRequest):
+    """
+    Live Grok x_search deep-dive on a single finance headline.
+    Called when the user taps a headline in the Finance/Markets buzz card.
+    """
+    from datetime import date, timedelta
+    import os, json, re, httpx
+
+    api_key = os.environ.get("GROK_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Grok API key not configured")
+
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    today_str = today.strftime("%B %-d, %Y")
+    yesterday_str = yesterday.strftime("%B %-d, %Y")
+
+    prompt = f"""Today is {today_str}.
+
+The user wants to know more about this financial news headline: "{body.headline}"
+
+Search X for posts from {yesterday_str} and {today_str} related to this topic.
+Find posts from financial journalists, analysts, traders, and official accounts.
+
+Return ONLY a raw JSON object — no markdown, no prose, no explanation.
+
+JSON format:
+{{
+  "headline": "{body.headline}",
+  "paragraphs": [
+    "What happened (1 sentence — the core fact, with specific numbers/names)",
+    "Market reaction (1 sentence — how markets or assets moved in response)",
+    "Why it matters (1 sentence — broader implication for investors or the economy)"
+  ],
+  "num_sources_used": 7
+}}
+
+Rules:
+- Each paragraph is ONE sentence only — tight and factual.
+- No preamble labels like "What happened:" — just the sentence itself.
+- Include specific numbers, tickers, percentages where found on X.
+- num_sources_used must reflect how many X posts you actually read.
+"""
+
+    raw = ""
+    try:
+        resp = httpx.post(
+            "https://api.x.ai/v1/responses",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "grok-4-fast-non-reasoning",
+                "input": [{"role": "user", "content": prompt}],
+                "tools": [{"type": "x_search"}],
+                "temperature": 0.2,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        message = next(
+            (item for item in reversed(data.get("output", []))
+             if item.get("type") == "message" and item.get("role") == "assistant"),
+            None,
+        )
+        if not message:
+            raise HTTPException(status_code=502, detail="No response from Grok")
+
+        raw = message["content"][0]["text"].strip()
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw)
+        result = json.loads(raw)
+        logger.info("POST /finance/topic-detail — done (headline=%s, sources=%s)", body.headline[:40], result.get("num_sources_used"))
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.error("POST /finance/topic-detail JSON parse failed: %s | raw: %s", e, raw[:300])
+        raise HTTPException(status_code=502, detail="Failed to parse Grok response")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("POST /finance/topic-detail failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def _load_sections_with_nba() -> dict | None:
     """Load sections from Redis and inject nba_stats as a top-level key.
 
