@@ -69,6 +69,10 @@ class SummaryRequest(BaseModel):
     story_id: str
 
 
+class TopicDetailRequest(BaseModel):
+    headline: str
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -227,6 +231,94 @@ async def nba_social_live():
     except Exception as exc:
         logger.exception("POST /nba/social/live failed: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/ai/topic-detail")
+async def ai_topic_detail(body: TopicDetailRequest):
+    """
+    Live Grok x_search deep-dive on a single AI headline.
+    Called when the user taps a headline in the AI section.
+    Returns 3-4 paragraphs of synthesized detail from X posts.
+    """
+    from datetime import date, timedelta
+    import os, json, re, httpx
+
+    api_key = os.environ.get("GROK_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Grok API key not configured")
+
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    today_str = today.strftime("%B %-d, %Y")
+    yesterday_str = yesterday.strftime("%B %-d, %Y")
+
+    prompt = f"""Today is {today_str}.
+
+The user wants to know more about this AI news headline: "{body.headline}"
+
+Search X for posts from {yesterday_str} and {today_str} related to this topic.
+Find the most informative posts — from journalists, researchers, practitioners, and official accounts.
+
+Return ONLY a raw JSON object — no markdown, no prose, no explanation.
+
+JSON format:
+{{
+  "headline": "{body.headline}",
+  "paragraphs": [
+    "What happened: 2-3 sentences summarizing the core news factually.",
+    "What people are saying: 2-3 sentences on the X reaction — who is excited, skeptical, or critical.",
+    "Why it matters: 2-3 sentences on the broader implications for AI or the industry.",
+    "Additional context (optional): any notable counterpoints, caveats, or related developments."
+  ],
+  "num_sources_used": 7
+}}
+
+Rules:
+- Write in your own words — do not quote tweets.
+- Be specific: include names, numbers, and companies where found on X.
+- If the topic is very new and X posts are sparse, still provide the best summary you can from what you find.
+- num_sources_used must reflect how many X posts you actually read.
+"""
+
+    raw = ""
+    try:
+        resp = httpx.post(
+            "https://api.x.ai/v1/responses",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "grok-4-fast-non-reasoning",
+                "input": [{"role": "user", "content": prompt}],
+                "tools": [{"type": "x_search"}],
+                "temperature": 0.2,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        message = next(
+            (item for item in reversed(data.get("output", []))
+             if item.get("type") == "message" and item.get("role") == "assistant"),
+            None,
+        )
+        if not message:
+            raise HTTPException(status_code=502, detail="No response from Grok")
+
+        raw = message["content"][0]["text"].strip()
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw)
+        result = json.loads(raw)
+        logger.info("POST /ai/topic-detail — done (headline=%s, sources=%s)", body.headline[:40], result.get("num_sources_used"))
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.error("POST /ai/topic-detail JSON parse failed: %s | raw: %s", e, raw[:300])
+        raise HTTPException(status_code=502, detail="Failed to parse Grok response")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("POST /ai/topic-detail failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def _load_sections_with_nba() -> dict | None:
