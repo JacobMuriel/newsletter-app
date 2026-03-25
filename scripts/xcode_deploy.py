@@ -14,6 +14,8 @@ Run this as a background process after a successful Render deploy:
 """
 
 import os
+import random
+import string
 import subprocess
 import sys
 import time
@@ -176,13 +178,14 @@ def build_and_install(udid: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    print("[xcode_deploy] Starting. Getting baseline offset...", flush=True)
+    token = "".join(random.choices(string.digits, k=4))
+    print(f"[xcode_deploy] Starting. Session token: {token}. Getting baseline offset...", flush=True)
     offset = get_baseline_offset()
     print(f"[xcode_deploy] Baseline offset: {offset}", flush=True)
 
     send_message(
-        "✅ Deploy complete. Turn your phone on, plug it in, unlock it, "
-        "and reply 'ready' to install Briefing to device."
+        f"✅ Deploy complete. Turn your phone on, plug it in, unlock it, "
+        f"and reply 'ready {token}' to install Briefing to device."
     )
 
     for i in range(MAX_POLLS):
@@ -194,13 +197,13 @@ def main() -> None:
             msg = update.get("message") or update.get("edited_message")
             if not msg:
                 continue
-            text = msg.get("text", "")
+            text = msg.get("text", "").strip().lower()
             chat_id = str(msg.get("chat", {}).get("id", ""))
 
             if chat_id != CHAT_ID:
                 continue
 
-            if "ready" in text.lower():
+            if "ready" in text and token in text:
                 print("[xcode_deploy] Got 'ready' — discovering device...", flush=True)
                 udid = find_device_udid()
                 if not udid:
