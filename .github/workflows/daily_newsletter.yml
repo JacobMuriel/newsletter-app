@@ -34,3 +34,10 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           NBA_STATS_ENABLED: "true"
         run: python cron_pipeline.py
+
+      - name: Trigger Render deploy
+        run: |
+          curl -f -s -X POST https://api.render.com/v1/services/srv-d6tbca0gjchc73cb5fd0/deploys \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
