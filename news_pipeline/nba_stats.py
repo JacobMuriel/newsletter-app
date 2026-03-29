@@ -606,6 +606,54 @@ def get_today_games() -> list[dict]:
     return get_today_nba_summary()["games"]
 
 
+def get_team_roster_and_injuries(team_abbr: str) -> dict[str, Any] | None:
+    """Fetch current roster and injury status for a team from ESPN's public roster endpoint.
+
+    Returns:
+      {
+        "active":  ["Player Name", ...],               # players with no injury designation
+        "injured": [{"name": "...", "status": "Out"}, ...]
+      }
+    Returns None on failure so the caller can fall back gracefully.
+    """
+    try:
+        url = (
+            f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
+            f"/teams/{team_abbr.lower()}/roster"
+        )
+        resp = httpx.get(url, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+
+        active: list[str] = []
+        injured: list[dict[str, str]] = []
+
+        for athlete in data.get("athletes", []):
+            name = athlete.get("displayName", "")
+            if not name:
+                continue
+            injuries = athlete.get("injuries", [])
+            if injuries:
+                # The first entry is the current designation (Out, Day-To-Day, etc.)
+                status = injuries[0].get("status", "Injured")
+                injured.append({"name": name, "status": status})
+            else:
+                active.append(name)
+
+        logger.info(
+            "[nba_stats] %s roster: %d active, %d injured/out",
+            team_abbr, len(active), len(injured),
+        )
+        return {"active": active, "injured": injured}
+
+    except Exception as exc:
+        logger.warning(
+            "[nba_stats] Roster fetch failed for %s — %s: %s",
+            team_abbr, type(exc).__name__, exc,
+        )
+        return None
+
+
 def _get_standings() -> list[dict] | None:
     """Fetch current NBA standings via ESPN standings API."""
     try:

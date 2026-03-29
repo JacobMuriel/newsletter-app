@@ -8,6 +8,8 @@ from datetime import date, timedelta
 
 import httpx
 
+from news_pipeline.nba_stats import get_team_roster_and_injuries
+
 logger = logging.getLogger(__name__)
 
 
@@ -58,10 +60,45 @@ Search X specifically for fan reactions to that confirmed result.
 If X posts are sparse (game ended recently), still populate the section using the confirmed score and whatever reactions you can find.
 """
 
+    # Fetch live roster/injury data for both teams to ground Grok in reality.
+    # Failure is non-fatal — we log a warning and omit the block so the rest of
+    # the pipeline continues unchanged.
+    def _roster_block(team_label: str, team_abbr: str) -> str:
+        data = get_team_roster_and_injuries(team_abbr)
+        if data is None:
+            logger.warning("[nba_social] Could not fetch %s roster — omitting from prompt", team_label)
+            return ""
+        active_str = ", ".join(data["active"]) if data["active"] else "none listed"
+        injured_str = (
+            ", ".join(f"{p['name']} ({p['status']})" for p in data["injured"])
+            if data["injured"] else "none listed"
+        )
+        return (
+            f"Current {team_label} active roster: {active_str}\n"
+            f"Current {team_label} injured/out: {injured_str}"
+        )
+
+    rockets_roster_block = _roster_block("Houston Rockets", "HOU")
+    bulls_roster_block   = _roster_block("Chicago Bulls",   "CHI")
+
+    roster_section = ""
+    if rockets_roster_block or bulls_roster_block:
+        parts = [p for p in [rockets_roster_block, bulls_roster_block] if p]
+        roster_section = f"""
+LIVE ROSTER & INJURY DATA (fetched from ESPN on {today_str} — use this, not your training data):
+{chr(10).join(parts)}
+
+Roster rules — strictly enforced:
+- Only name players who appear in the "active roster" lists above when describing game action or reactions.
+- Do NOT mention any player listed as injured/out as having played, scored, or contributed in any way.
+- Do NOT reference any player not on these rosters at all — if a name is absent, they did not play.
+- Do not rely on stale training data for roster composition or injury status; the lists above are authoritative.
+- Use only X posts and official sources (ESPN, NBA.com, team accounts) as evidence — do not fabricate quotes or reactions.
+"""
+
     prompt = f"""
 Today is {today_str}. Search X (Twitter) for NBA posts from {yesterday_str} and {today_str}.
-{confirmed_block}
-
+{confirmed_block}{roster_section}
 Use your x_search tool to find posts about:
 - The Houston Rockets game on {yesterday_str}
 - The Chicago Bulls game on {yesterday_str}
@@ -70,14 +107,16 @@ Use your x_search tool to find posts about:
 Then return ONLY a raw JSON object in exactly this format — no markdown, no prose, no explanation.
 
 Rules:
-- Use specific player names, teams, and scores from what you find on X. Never use vague language like "a star player."
+- Use specific player names, teams, and scores sourced directly from X posts and official accounts — never infer or hallucinate.
+- Only reference players who appear in the "active roster" lists provided above. Do NOT mention injured/out players as having played.
+- Do not use your training data for roster composition, injury status, or who played — the ESPN lists above are the only source of truth for that.
 - The "score" field MUST be the verified official final score. Search for posts from @NBAcom, @ESPN, or the official team accounts (@HoustonRockets, @ChicagoBulls) to confirm the exact final score. Do NOT use fan posts or in-game score updates — only the confirmed final.
 - If a team played on {yesterday_str}, you MUST populate their buzz object with the score, opponent, result, sentiment, and 5-6 distinct topics covering different angles of the game. Do NOT set to null if they played.
 - Only set rockets_buzz or bulls_buzz to null if that team had no game scheduled on {yesterday_str}.
 - Each topic covers a specific angle: the overall result reaction, a key player's performance, a controversial moment or call, playoff/standings implications, coaching decisions, etc.
 - league_buzz must contain 4-5 items about other teams — there is always NBA news worth reporting. Good angles: standout performances, MVP/award races, injury news, trade rumors, anything generating significant X volume.
 - Do not include trade deadline content (deadline has passed for 2025-26).
-- Each summary must be 2-3 sentences synthesizing what X is saying about that specific angle.
+- Each summary must be 2-3 sentences synthesizing what X is actually saying about that specific angle — ground every claim in real posts.
 
 JSON format:
 {{
