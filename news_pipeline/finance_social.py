@@ -37,33 +37,37 @@ def fetch_finance_buzz() -> dict | None:
     today_iso = today.strftime("%Y-%m-%d")
 
     prompt = f"""
-Today is {today_str}. Search X (FinTwit) for the biggest finance and markets news from {yesterday_str} and {today_str}.
+Today is {today_str}. Search X for company-specific finance news and investor reactions from {yesterday_str} and {today_str}.
 
-Cast a wide net — search for posts from financial journalists, analysts, traders, and major accounts
-like @unusual_whales, @financialjuice, @WSJmarkets, @markets, @CNBC, and prominent FinTwit voices.
+Focus on specific company and deal events — NOT broad market or macro commentary.
+Search posts from finance journalists, analysts, and investor accounts:
+@unusual_whales, @CNBC, @WSJ, @business, @herbgreenberg, @\u0062rockbrower, and sector-focused accounts.
 
-Cover all four areas:
-- Stock market moves: S&P 500, Nasdaq, notable individual stocks
-- Macro / Fed / interest rates: Fed policy, inflation, economic data
-- Crypto: Bitcoin, Ethereum, major moves or news
-- Earnings: any notable earnings reports or guidance
+Cover these areas — prioritize by X volume:
+- Earnings: companies that reported results, beat/miss reactions, guidance moves
+- M&A and deals: acquisitions, mergers, IPOs, spin-offs, activist moves
+- Regulatory and legal: antitrust decisions, SEC actions, major settlements
+- Individual stock moves: notable single-stock surges or drops with a clear catalyst
+- Corporate events: CEO changes, layoffs, restructuring, product launches with market impact
+- Credit and debt: bond issuances, credit downgrades, bankruptcy filings
 
 Return ONLY a raw JSON object — no markdown, no prose, no explanation.
 
 Rules:
-- Each headline must be one sentence, under 15 words, lowercase (except proper nouns/tickers/$ amounts).
-- Include specific names: tickers, companies, dollar figures, percentages where relevant.
-- Be factual — only report what actually happened, not speculation.
-- Return all headlines you found — do not cap the count. Aim for 8-12.
-- If markets were closed (weekend/holiday), report on crypto moves and any major news that broke.
+- Every headline must name a SPECIFIC company, ticker, or deal — no broad market commentary.
+- Each headline is one sentence, under 15 words, lowercase (except proper nouns/tickers/$ amounts).
+- Include specific numbers: EPS beats/misses, stock moves, deal values, percentages.
+- Be direct about reaction: "surges", "tumbles", "rallies", "tanks", "beats", "misses".
+- Return 7-10 headlines covering different companies and event types.
+- Avoid headlines about the S&P 500, Nasdaq overall, or Fed policy — those belong in Markets.
 
 JSON format:
 {{
   "items": [
-    {{"headline": "s&p 500 drops 1.2% as fed signals rates higher for longer"}},
-    {{"headline": "nvidia beats earnings, guides $28B next quarter — stock up 8% after hours"}},
-    {{"headline": "bitcoin surges past $95k on ETF inflow data"}},
-    {{"headline": "jpmorgan warns of recession risk if tariffs hold through q3"}}
+    {{"headline": "nvidia beats Q1 EPS by $0.18, raises full-year guidance — stock up 7% after hours"}},
+    {{"headline": "$TSLA sinks 6% after reuters reports gigafactory pause in mexico"}},
+    {{"headline": "microsoft acquires gaming studio for $8.5B — deal clears FTC review"}},
+    {{"headline": "JPMorgan misses revenue estimates, cites weaker investment banking"}}
   ],
   "num_sources_used": 12,
   "date": "{today_iso}"
