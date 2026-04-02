@@ -1,6 +1,6 @@
 # CLAUDE.md — Persistent Brain
 
-Last updated: March 21, 2026 (workflow enforcement)
+Last updated: April 1, 2026 (secondary pipeline runs)
 
 This file is the single source of truth for any Claude session — chat or Claude Code.
 Read this before touching anything. It covers not just *what* the system does but *why* it's built this way, common failure modes, and how to debug them.
@@ -21,7 +21,7 @@ A personal daily news app called **Briefing**. The core motivation is unbiased n
 
 This is the foundational constraint everything else flows from. The Render free tier has ephemeral containers — any in-memory or `/tmp` state is wiped on sleep or redeploy. So:
 
-- The pipeline runs once a day via GitHub Actions cron (7am CT)
+- The pipeline runs at 6am CT (primary) and 2pm/6pm CT (secondary top-only refreshes) via GitHub Actions
 - It writes everything to Upstash Redis (external, persistent)
 - The FastAPI server is read-only — it only reads from Redis
 - If Redis is empty or stale, the server returns nothing — it does NOT fall back to running the pipeline
@@ -38,7 +38,7 @@ This is the foundational constraint everything else flows from. The Render free 
 ## System Architecture
 
 ```
-GitHub Actions (daily cron, 7am CT / 12:00 UTC)
+GitHub Actions (primary: 6am CT / 11:00 UTC; secondary: 2pm + 6pm CT)
   └── cron_pipeline.py
         ├── fetch_news.py        — parallel RSS fetch (~80 articles, 20 feeds)
         ├── cluster.py           — TF-IDF + entity deduplication → Stories
@@ -204,7 +204,9 @@ Do not proceed to Phase 4 until the run shows `completed / success`. If it fails
 
 ### Phase 4 — Deploy to Render
 
-Bump `DEPLOY_TIMESTAMP` via MCP to force a fresh deploy (auto-deploy on push is unreliable):
+Render redeploys automatically at the end of the GitHub Actions pipeline (curl step in workflow). Confirm via `/health` ~2 min after the pipeline completes — no manual trigger needed.
+
+If a mid-day manual deploy is still required (e.g., server-only change), bump `DEPLOY_TIMESTAMP` via MCP:
 
 ```python
 mcp__render__update_environment_variables(
@@ -391,13 +393,15 @@ These were made deliberately and shouldn't be revisited without a strong reason:
 
 ---
 
-## Current State (March 20, 2026)
+## Current State (April 1, 2026)
 
 **Everything is working end-to-end:**
 - Full pipeline: GitHub Actions → Redis → Render → iOS
 - NBA social buzz via Grok (grok-4, `/v1/responses`, `x_search`)
 - Pre-generated summaries from Redis
 - iOS renders all sections including SocialBuzzCard
+- Render redeploys automatically at end of daily pipeline (no manual DEPLOY_TIMESTAMP bump needed)
+- Secondary pipeline runs at 2pm + 6pm CT — top section only (10 stories), no Grok, partial Redis write preserving morning buzz data
 
 **`gh` CLI is authenticated** (as JacobMuriel, `workflow` scope) — Claude Code can trigger GitHub Actions autonomously.
 
