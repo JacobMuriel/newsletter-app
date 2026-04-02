@@ -3,7 +3,9 @@ name: Daily Pipeline
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 12 * * *"   # 7am US Central (UTC-5)
+    - cron: "0 11 * * *"   # 6am CT primary (UTC-5)
+    - cron: "0 19 * * *"   # 2pm CT secondary
+    - cron: "0 23 * * *"   # 6pm CT secondary
 
 jobs:
   run-pipeline:
@@ -21,6 +23,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Set run mode
+        id: mode
+        run: |
+          HOUR=$(date -u +%H)
+          # Primary run is the 11:00 UTC / 6am CT job.
+          # workflow_dispatch always runs as primary so manual triggers get a full pipeline.
+          if [ "$HOUR" = "11" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "top_only=false" >> $GITHUB_OUTPUT
+          else
+            echo "top_only=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run pipeline and write to Redis
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -33,9 +47,15 @@ jobs:
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           NBA_STATS_ENABLED: "true"
-        run: python cron_pipeline.py
+        run: |
+          if [ "${{ steps.mode.outputs.top_only }}" = "true" ]; then
+            python cron_pipeline.py --top-only
+          else
+            python cron_pipeline.py
+          fi
 
       - name: Trigger Render deploy
+        if: success()
         run: |
           curl -f -s -X POST https://api.render.com/v1/services/srv-d6tbca0gjchc73cb5fd0/deploys \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \

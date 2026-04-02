@@ -284,6 +284,9 @@ def _apply_runtime_overrides(settings: dict) -> dict:
     p["max_stories_to_rank"] = _env_int("MAX_STORIES_TO_RANK", p["max_stories_to_rank"])
     p["max_stories_to_summarize"] = _env_int("MAX_STORIES_TO_SUMMARIZE", p.get("max_stories_to_summarize", 10))
 
+    # TOP_SECTION_LIMIT lets --top-only mode expand the top section cap (default 5 → 10)
+    s["section_limits"]["top"] = _env_int("TOP_SECTION_LIMIT", int(s["section_limits"]["top"]))
+
     summ["openai_enabled"] = p["openai_enabled"]
     summ["model"] = os.getenv("OPENAI_MODEL", summ["model"])
 

@@ -149,6 +149,53 @@ def save_summaries_cache(summaries: dict) -> None:
         logger.warning(f"[redis_cache] Could not write summaries cache: {e}")
 
 
+# ── Top-only partial write (secondary pipeline runs) ──────────────────────────
+
+def write_top_section_only(top_stories: list, summaries: dict) -> None:
+    """
+    Overwrites only briefing:sections.top within the existing sections key.
+    Merges new top summaries into existing briefing:summaries without wiping other keys.
+    Used by secondary pipeline runs (2pm / 6pm CT) to refresh top stories while
+    preserving morning Grok data (nba_social_buzz, ai_social_buzz, etc.).
+
+    Falls back to a full write if Redis is cold / key missing.
+    Does NOT update briefing:cache_date — preserves the morning's timestamp.
+    """
+    try:
+        client = _get_client()
+
+        # ── Patch sections ────────────────────────────────────────────────────
+        raw_sections = client.get(SECTIONS_KEY)
+        if raw_sections:
+            sections_data = json.loads(raw_sections)
+            sections_data["sections"]["top"] = top_stories
+        else:
+            # Cold start — nothing to preserve; write a minimal valid structure
+            logger.warning("[redis_cache] No existing sections key — falling back to bare top write")
+            sections_data = {
+                "generated_at": None,
+                "sections": {"top": top_stories},
+                "nba_social_buzz": None,
+                "ai_social_buzz": None,
+                "finance_buzz": None,
+                "markets_buzz": None,
+            }
+        client.set(SECTIONS_KEY, json.dumps(sections_data), ex=CACHE_TTL_SECONDS)
+        logger.info(f"[redis_cache] Top section patched ({len(top_stories)} stories)")
+
+        # ── Merge summaries ───────────────────────────────────────────────────
+        raw_summaries = client.get(SUMMARIES_KEY)
+        existing_summaries: dict = json.loads(raw_summaries) if raw_summaries else {}
+        existing_summaries.update(summaries)
+        client.set(SUMMARIES_KEY, json.dumps(existing_summaries), ex=CACHE_TTL_SECONDS)
+        logger.info(f"[redis_cache] Summaries merged ({len(summaries)} new, {len(existing_summaries)} total)")
+
+    except EnvironmentError:
+        raise
+    except Exception as e:
+        logger.warning(f"[redis_cache] Could not write top-only cache: {e}")
+
+
 # ── NBA Stats ──────────────────────────────────────────────────────────────────
 
 def save_nba_stats_cache(data: dict) -> None:
