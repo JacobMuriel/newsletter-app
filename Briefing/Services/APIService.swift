@@ -14,6 +14,12 @@ class APIService {
         return URLSession(configuration: config)
     }()
 
+    func warmup() async {
+        guard let url = URL(string: "\(baseURL)/warmup") else { return }
+        print("[API] GET /warmup")
+        _ = try? await session.data(from: url)
+    }
+
     func fetchSections() async throws -> [String: [Story]] {
         guard let url = URL(string: "\(baseURL)/sections") else {
             throw URLError(.badURL)

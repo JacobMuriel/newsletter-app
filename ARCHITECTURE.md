@@ -1,6 +1,6 @@
 # Briefing App — Architecture Reference
 
-Current as of April 1, 2026. Use this as context when starting a new Claude session.
+Current as of April 2, 2026. Use this as context when starting a new Claude session.
 
 ---
 
@@ -36,7 +36,8 @@ Render (newsletter-app, free tier, Ohio)
         └── GET /health          — liveness check
 
 iOS App (Briefing, Swift, git submodule)
-  └── APIService.fetchSections() → HomeViewModel → HomeView
+  └── APIService → HomeViewModel → HomeView
+        ├── warmup()             — GET /warmup fires first on every loadSections() call
         ├── SectionTabBar        — top / markets / ai / finance_market_structure / nba
         ├── StoryCard            — per-story headline, source, bias flags
         ├── SocialBuzzCard       — shown in NBA tab, renders nba_social_buzz
@@ -207,7 +208,7 @@ Briefing/Briefing/Briefing/          iOS app (Swift, git submodule)
 ├── ViewModels/
 │   └── HomeViewModel.swift          Holds sections, nbaSocialBuzz, selectedSection state
 └── Services/
-    └── APIService.swift             fetchSections(), fetchSummary()
+    └── APIService.swift             warmup(), fetchSections(), fetchSummary()
 ```
 
 ---

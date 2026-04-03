@@ -1,6 +1,6 @@
 # CLAUDE.md — Persistent Brain
 
-Last updated: April 1, 2026 (secondary pipeline runs)
+Last updated: April 2, 2026 (iOS warmup prefetch)
 
 This file is the single source of truth for any Claude session — chat or Claude Code.
 Read this before touching anything. It covers not just *what* the system does but *why* it's built this way, common failure modes, and how to debug them.
@@ -393,7 +393,7 @@ These were made deliberately and shouldn't be revisited without a strong reason:
 
 ---
 
-## Current State (April 1, 2026)
+## Current State (April 2, 2026)
 
 **Everything is working end-to-end:**
 - Full pipeline: GitHub Actions → Redis → Render → iOS
@@ -402,10 +402,11 @@ These were made deliberately and shouldn't be revisited without a strong reason:
 - iOS renders all sections including SocialBuzzCard
 - Render redeploys automatically at end of daily pipeline (no manual DEPLOY_TIMESTAMP bump needed)
 - Secondary pipeline runs at 2pm + 6pm CT — top section only (10 stories), no Grok, partial Redis write preserving morning buzz data
+- iOS calls `/warmup` as first step of `loadSections()` — wakes Render and pre-loads Redis into memory before `/sections` fires
 
 **`gh` CLI is authenticated** (as JacobMuriel, `workflow` scope) — Claude Code can trigger GitHub Actions autonomously.
 
-**Open item:** `Briefing/Briefing` submodule shows as modified in git status — check if there are uncommitted iOS changes.
+**Open item:** Add a `/warmup` curl call to the GitHub Actions workflow after the Render deploy finishes — this would pre-warm the server's in-memory cache before the first iOS client connects, so the very first open after each daily deploy is already fast.
 
 ---
 

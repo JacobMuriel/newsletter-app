@@ -20,6 +20,7 @@ class HomeViewModel: ObservableObject {
     func loadSections() async {
         isLoading = true
         errorMessage = nil
+        await APIService.shared.warmup()
         do {
             sections = try await APIService.shared.fetchSections()
             isLoading = false
