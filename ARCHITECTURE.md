@@ -1,6 +1,6 @@
 # Briefing App — Architecture Reference
 
-Current as of April 2, 2026. Use this as context when starting a new Claude session.
+Current as of April 2, 2026 (session 19). Use this as context when starting a new Claude session.
 
 ---
 
@@ -55,6 +55,7 @@ iOS App (Briefing, Swift, git submodule)
 4. Full pipeline runs: fetch → cluster → categorize → quality → rank → summarize
 5. All Redis keys written: `briefing:sections`, `briefing:summaries`, `briefing:cache_date` (TTL 28h)
 6. Render auto-redeploys via curl step at end of workflow
+7. Workflow polls `/health` every 15s (up to 5 min), then hits `/warmup` — in-memory cache is hot before any iOS client connects
 
 ### Secondary runs (2pm + 6pm CT)
 1. GitHub Actions triggers `cron_pipeline.py --top-only`
@@ -62,7 +63,7 @@ iOS App (Briefing, Swift, git submodule)
 3. Full RSS fetch + cluster + rank pipeline runs (top section cap expanded to 10)
 4. **Partial Redis write:** only `briefing:sections.top` is patched; summaries merged in
 5. `briefing:cache_date` NOT updated — morning timestamp preserved
-6. Render auto-redeploys
+6. Render auto-redeploys; workflow polls + warms cache
 
 **Critical:** The server never runs the pipeline. It only reads from Redis.
 
@@ -134,7 +135,8 @@ Stories ranked by weighted score: ideological spread (2.0), source quality (1.8)
 - URL: `https://newsletter-app-ry48.onrender.com`
 - Free tier — sleeps after inactivity, ~30s cold start
 - **Auto-redeploys at the end of every GitHub Actions pipeline run** (curl step in workflow)
-- For mid-day manual deploys: bump `DEPLOY_TIMESTAMP` via `mcp__render__update_environment_variables`
+- After redeploy, workflow polls `/health` then hits `/warmup` — cache is pre-loaded before first iOS connect
+- For mid-day manual deploys (no pipeline run): bump `DEPLOY_TIMESTAMP` via `mcp__render__update_environment_variables`, then hit `/warmup` manually
 
 **Cron:** `.github/workflows/daily_newsletter.yml`
 - Primary: `0 11 * * *` (11:00 UTC / 6am CT)
@@ -222,3 +224,4 @@ Briefing/Briefing/Briefing/          iOS app (Swift, git submodule)
 - **GitHub Secret rotation:** When rotating `GROK_API_KEY`, update BOTH Render env var AND GitHub Actions secret. Missing either one silently writes `nba_social_buzz: null`.
 - **RENDER_API_KEY is GitHub-only:** It's only needed by the Actions curl step — no need to add it as a Render env var.
 - **Render free tier cold starts:** First request after inactivity ~30s. iOS app handles via `/warmup` + retry.
+- **Post-deploy warmup race (dev only):** During development sessions, a git push triggers Render's auto-deploy on push AND the workflow triggers its own deploy — if both race, the warmup may hit the first (old) instance which then gets replaced. Only happens when pushing code mid-session. The scheduled 6am cron has no competing push so warmup works cleanly.
