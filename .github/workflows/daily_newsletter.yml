@@ -61,3 +61,21 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{}'
+
+      - name: Wait for Render and warm cache
+        if: success()
+        run: |
+          echo "Waiting for Render to come live..."
+          for i in $(seq 1 20); do
+            STATUS=$(curl -s https://newsletter-app-ry48.onrender.com/health \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+            if [ "$STATUS" = "ok" ]; then
+              echo "Server live — warming cache..."
+              curl -s https://newsletter-app-ry48.onrender.com/warmup
+              echo "Cache warmed."
+              exit 0
+            fi
+            echo "Not live yet (attempt $i/20), retrying in 15s..."
+            sleep 15
+          done
+          echo "Render did not come up in time — skipping warmup"
